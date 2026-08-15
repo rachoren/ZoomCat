@@ -5,15 +5,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>zh_CN</string>
 	<key>CFBundleExecutable</key>
-	<string>RunCat</string>
+	<string>ZoomCat</string>
 	<key>CFBundleIdentifier</key>
-	<string>local.runcat.app</string>
+	<string>local.zoomcat.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>RunCat</string>
+	<string>ZoomCat</string>
 	<key>CFBundleDisplayName</key>
-	<string>RunCat</string>
+	<string>ZoomCat</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

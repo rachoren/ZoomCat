@@ -1,6 +1,6 @@
 import AppKit
 
-// 图标生成模式: RunCat --gen-icon <输出PNG路径>
+// 图标生成模式: ZoomCat --gen-icon <输出PNG路径>
 let args = CommandLine.arguments
 if let idx = args.firstIndex(of: "--gen-icon"), args.count > idx + 1 {
     let icon = CatPainter(breed: .ragdoll).appIcon()

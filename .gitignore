@@ -1,5 +1,6 @@
 # 构建产物
 RunCat.app/
+ZoomCat.app/
 build/
 
 # macOS

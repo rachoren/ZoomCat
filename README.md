@@ -1,4 +1,4 @@
-# RunCat（新实现）
+# ZoomCat（新实现）
 
 一个原生 macOS 菜单栏小猫：根据整机 CPU 使用率控制猫咪奔跑速度 ——
 CPU 低时端坐休息、摇尾巴，CPU 高时撒腿狂奔。纯 Swift + AppKit 实现，
@@ -28,12 +28,12 @@ CPU 低时端坐休息、摇尾巴，CPU 高时撒腿狂奔。纯 Swift + AppKit
 ## 构建与运行
 
 ```bash
-./build.sh          # 编译 + 打包 RunCat.app
-open RunCat.app     # 启动（或双击）
+./build.sh          # 编译 + 打包 ZoomCat.app
+open ZoomCat.app     # 启动（或双击）
 ```
 
-构建产物为 `RunCat.app`，仅需 macOS 13.0+（已在 macOS 15.7 Intel 上验证）。
-建议把 `RunCat.app` 拖入“应用程序”文件夹后使用“开机自动启动”功能。
+构建产物为 `ZoomCat.app`，仅需 macOS 13.0+（已在 macOS 15.7 Intel 上验证）。
+建议把 `ZoomCat.app` 拖入“应用程序”文件夹后使用“开机自动启动”功能。
 
 ## 使用
 
@@ -49,10 +49,10 @@ macOS 没有公开的温度 API。本应用按 SMC → IOHID → 温度监控助
 （例如本机 macOS 15.7 上 AppleSMC 用户态接口被限制、无 HID 温度传感器），
 启动时会出现**一次性**启用提示（或通过菜单“温度监控助手”手动启用）：
 
-- 只需输入一次开机密码，注册一个 LaunchDaemon（`local.runcat.temperature`）
+- 只需输入一次开机密码，注册一个 LaunchDaemon（`local.zoomcat.temperature`）
 - 该守护进程由系统开机自动启动，后台运行 `powermetrics` 持续采集
-  CPU 温度并写入 `/tmp/runcat_smc.log`（每 30 分钟自动截断，日志有界）
-- 之后无需任何操作：重启电脑、重新打开 RunCat，温度都会自动显示
+  CPU 温度并写入 `/tmp/zoomcat_smc.log`（每 30 分钟自动截断，日志有界）
+- 之后无需任何操作：重启电脑、重新打开 ZoomCat，温度都会自动显示
 - 想停用时，点菜单“温度监控助手 ▸ 停用…”即可
 
 > 说明：守护进程仅以只读方式采集温度，不访问任何用户数据；

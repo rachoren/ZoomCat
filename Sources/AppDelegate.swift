@@ -52,7 +52,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.imagePosition = .imageOnly
-        statusItem.button?.toolTip = "RunCat"
+        statusItem.button?.toolTip = "ZoomCat"
 
         rebuildFrames()
         buildMenu()
@@ -188,7 +188,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         refreshLoginItem()
 
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "退出 RunCat", action: #selector(NSApplication.terminate(_:)),
+        let quit = NSMenuItem(title: "退出 ZoomCat", action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
         quit.target = NSApp
         menu.addItem(quit)
@@ -340,7 +340,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } catch {
                 let alert = NSAlert()
                 alert.messageText = "开机自动启动设置失败"
-                alert.informativeText = "请把 RunCat.app 移动到“应用程序”文件夹后重试。"
+                alert.informativeText = "请把 ZoomCat.app 移动到“应用程序”文件夹后重试。"
                 alert.runModal()
             }
         }

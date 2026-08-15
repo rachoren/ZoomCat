@@ -3,9 +3,9 @@ import Foundation
 /// 温度监控助手：以 LaunchDaemon 方式常驻运行 powermetrics。
 /// 一次性授权安装后，开机自动启动、崩溃自动重启，无需再次输入密码。
 enum TemperatureDaemon {
-    static let label = "local.runcat.temperature"
+    static let label = "local.zoomcat.temperature"
     static let plistPath = "/Library/LaunchDaemons/\(label).plist"
-    static let logPath = "/tmp/runcat_smc.log"
+    static let logPath = "/tmp/zoomcat_smc.log"
 
     static var isInstalled: Bool {
         FileManager.default.fileExists(atPath: plistPath)
@@ -33,7 +33,7 @@ enum TemperatureDaemon {
             <key>KeepAlive</key>
             <true/>
             <key>StandardErrorPath</key>
-            <string>/tmp/runcat_smc.err</string>
+            <string>/tmp/zoomcat_smc.err</string>
         </dict>
         </plist>
         """
@@ -60,7 +60,7 @@ enum TemperatureDaemon {
     static func uninstall(completion: @escaping (Bool) -> Void) {
         let cmd = """
         (launchctl bootout system/\(label) >/dev/null 2>&1; true) && \
-        rm -f \(plistPath) \(logPath) /tmp/runcat_smc.err
+        rm -f \(plistPath) \(logPath) /tmp/zoomcat_smc.err
         """
         runAdminShell(cmd, completion: completion)
     }

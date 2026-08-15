@@ -1,10 +1,10 @@
 #!/bin/bash
-# 构建 RunCat.app：编译 -> 生成图标 -> 打包 -> 签名
+# 构建 ZoomCat.app：编译 -> 生成图标 -> 打包 -> 签名
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP="RunCat.app"
-BIN="$APP/Contents/MacOS/RunCat"
+APP="ZoomCat.app"
+BIN="$APP/Contents/MacOS/ZoomCat"
 
 echo "==> 清理旧构建..."
 rm -rf "$APP" build
