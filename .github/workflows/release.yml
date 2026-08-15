@@ -1,0 +1,56 @@
+name: Release Build
+
+# 触发方式：
+#  1) 推送 v* 标签（如 v0.2）→ 自动构建 + 创建 GitHub Release 并附带安装包
+#  2) 手动触发（Actions 页面 → Run workflow）→ 只构建并上传 Artifact，不建 Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Toolchain
+        run: swift --version && uname -m
+
+      - name: Build Universal App (Intel + Apple Silicon)
+        run: UNIVERSAL=1 ./build.sh
+
+      - name: Verify Universal Binary
+        run: lipo -info ZoomCat.app/Contents/MacOS/ZoomCat
+
+      - name: Package ZIP
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$VERSION" = "$GITHUB_REF_NAME" ]; then VERSION="dev"; fi
+          ditto -c -k --keepParent ZoomCat.app "ZoomCat-${VERSION}-macOS-Universal.zip"
+          ls -lh ZoomCat-*.zip
+
+      - name: Upload Artifact (manual runs)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZoomCat-universal
+          path: ZoomCat-*.zip
+
+      - name: Create Release & Upload (tag runs)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" "ZoomCat-${VERSION}-macOS-Universal.zip" \
+            --title "ZoomCat ${VERSION}" \
+            --notes "自动构建：macOS Universal 通用包（Intel + Apple Silicon）。
+
+          如果下载后提示“无法验证开发者”，属于正常的 ad-hoc 签名限制：
+          - 方式一：右键 App 图标 → 打开 → 再次点击“打开”
+          - 方式二：系统设置 → 隐私与安全性 → “仍要打开”
+          - 正式分发需 Apple Developer 签名 + 公证（见 README）"
