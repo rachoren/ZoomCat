@@ -1,0 +1,10 @@
+# 构建产物
+RunCat.app/
+build/
+
+# macOS
+.DS_Store
+
+# 临时文件
+/tmp/
+*.log
