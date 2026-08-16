@@ -164,6 +164,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             model.batteryText = BatteryStats.formatted()
             model.daemonInstalled = TemperatureDaemon.isInstalled
             syncLoginState()
+            refreshClaudeState()
         }
 
         // 占用排行（Top 3 进程）：2s，后台采集避免卡顿
@@ -272,6 +273,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if b >= 1 << 30 { return String(format: "%.1f GB", Double(b) / 1e9) }
         if b >= 1 << 20 { return String(format: "%.0f MB", Double(b) / 1e6) }
         return String(format: "%.0f KB", Double(b) / 1e3)
+    }
+
+    // MARK: - Claude Code 集成
+
+    private func refreshClaudeState() {
+        model.claudeConfigured = ClaudeStatus.isConfigured
+        let s = ClaudeStatus.summary()
+        model.claudeModel = s.model
+        model.claudeContext = s.context
+        model.claudeFive = s.five
+        model.claudeSeven = s.seven
+        model.claudeActive = s.active
+    }
+
+    func setupClaudeStatus() {
+        switch ClaudeStatus.register() {
+        case .success:
+            let alert = NSAlert()
+            alert.messageText = "Claude Code 已配置"
+            alert.informativeText = "下次启动 Claude Code 会话时生效：每轮回答后自动更新模型与用量。\n\n状态文件：~/.claude/zoomcat-usage.json"
+            alert.runModal()
+        case .conflict:
+            let alert = NSAlert()
+            alert.messageText = "检测到已有 statusLine 配置"
+            alert.informativeText = "Claude Code 只允许一个 statusLine 命令。请把你的现有脚本与下面这行合并后填入 settings.json：\n\n\"command\": \"\(ClaudeStatus.scriptPath)\""
+            alert.runModal()
+        case .failure:
+            let alert = NSAlert()
+            alert.messageText = "配置失败"
+            alert.informativeText = "无法写入脚本或 ~/.claude/settings.json。"
+            alert.runModal()
+        }
+        refreshClaudeState()
+    }
+
+    func removeClaudeStatus() {
+        ClaudeStatus.unregister()
+        refreshClaudeState()
     }
 
     // MARK: - Dashboard 动作

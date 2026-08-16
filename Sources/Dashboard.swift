@@ -30,6 +30,13 @@ final class DashboardModel: ObservableObject {
 
     @Published var topCPU: [ProcessEntry] = []
     @Published var topMemory: [ProcessEntry] = []
+
+    @Published var claudeConfigured = false
+    @Published var claudeActive = false
+    @Published var claudeModel = "--"
+    @Published var claudeContext = "--"
+    @Published var claudeFive = "--"
+    @Published var claudeSeven = "--"
 }
 
 // MARK: - 进程排行条目
@@ -58,6 +65,8 @@ struct DashboardView: View {
     let onToggleLogin: (Bool) -> Void
     let onAbout: () -> Void
     let onQuit: () -> Void
+    let onClaudeSetup: () -> Void
+    let onClaudeRemove: () -> Void
     @State private var processMetric: ProcessMetric = .cpu
 
     var body: some View {
@@ -66,6 +75,7 @@ struct DashboardView: View {
                 header
                 infoGrid
                 graphCard
+                claudeSection
                 processSection
                 breedSection
                 settingsSection
@@ -119,6 +129,46 @@ struct DashboardView: View {
                 .foregroundStyle(.secondary)
             HistoryGraph(values: model.cpuHistory)
                 .frame(height: 54)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(.thinMaterial))
+    }
+
+    // MARK: Claude Code 集成
+
+    private var claudeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Claude Code")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if model.claudeConfigured {
+                    Button("移除", action: onClaudeRemove)
+                        .controlSize(.small)
+                } else {
+                    Button("一键配置", action: onClaudeSetup)
+                        .controlSize(.small)
+                }
+            }
+
+            if !model.claudeConfigured {
+                Text("配置后可在仪表盘查看 Claude Code 的模型与用量")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if !model.claudeActive {
+                Text("等待 Claude Code 会话…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ClaudeRow(title: "模型", value: model.claudeModel)
+                ClaudeRow(title: "上下文", value: model.claudeContext)
+                ClaudeRow(title: "5h 限额", value: model.claudeFive)
+                ClaudeRow(title: "7d 限额", value: model.claudeSeven)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -369,6 +419,24 @@ struct ProcessRow: View {
     }
 }
 
+// MARK: - Claude 行
+
+struct ClaudeRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.callout.monospacedDigit())
+        }
+    }
+}
+
 // MARK: - 弹出控制器
 
 /// 管理 NSPopover：点击菜单栏猫咪时展示/关闭仪表盘。
@@ -432,7 +500,9 @@ final class DashboardController {
             onToggleDaemon: { [weak self] in self?.app?.toggleDaemonAction() },
             onToggleLogin: { [weak self] on in self?.app?.setLoginAtLaunch(on) },
             onAbout: { [weak self] in self?.app?.showAboutPanel() },
-            onQuit: { [weak self] in self?.app?.quitApp() }
+            onQuit: { [weak self] in self?.app?.quitApp() },
+            onClaudeSetup: { [weak self] in self?.app?.setupClaudeStatus() },
+            onClaudeRemove: { [weak self] in self?.app?.removeClaudeStatus() }
         )
         let hosting = NSHostingController(rootView: view)
         self.hosting = hosting
