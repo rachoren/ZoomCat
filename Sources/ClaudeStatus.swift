@@ -87,9 +87,12 @@ enum ClaudeStatus {
         try? FileManager.default.removeItem(atPath: scriptPath)
     }
 
-    /// 汇总展示文本。
-    static func summary() -> (model: String, context: String, five: String, seven: String, active: Bool) {
-        guard let s = read() else { return ("--", "--", "--", "--", false) }
+    /// 汇总展示文本（含进度条比例 0-1）。
+    static func summary() -> (model: String, context: String, five: String, seven: String,
+                              contextFrac: Double, fiveFrac: Double, sevenFrac: Double, active: Bool) {
+        guard let s = read() else {
+            return ("--", "--", "--", "--", 0, 0, 0, false)
+        }
         // 新鲜度：文件在 90 秒内更新过视为会话活跃
         var active = false
         if let attrs = try? FileManager.default.attributesOfItem(atPath: jsonPath),
@@ -98,7 +101,13 @@ enum ClaudeStatus {
         }
         let five = formatPercent(s.fiveHour) + formatReset(s.fiveResetAt)
         let seven = formatPercent(s.sevenDay) + formatReset(s.sevenResetAt)
-        return (s.model ?? "--", formatPercent(s.context), five, seven, active)
+        return (s.model ?? "--", formatPercent(s.context), five, seven,
+                clampFrac(s.context), clampFrac(s.fiveHour), clampFrac(s.sevenDay), active)
+    }
+
+    private static func clampFrac(_ v: Double?) -> Double {
+        guard let v else { return 0 }
+        return min(max(v / 100.0, 0), 1)
     }
 
     private static func formatPercent(_ v: Double?) -> String {

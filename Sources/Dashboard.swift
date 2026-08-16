@@ -37,6 +37,9 @@ final class DashboardModel: ObservableObject {
     @Published var claudeContext = "--"
     @Published var claudeFive = "--"
     @Published var claudeSeven = "--"
+    @Published var claudeContextFrac: Double = 0
+    @Published var claudeFiveFrac: Double = 0
+    @Published var claudeSevenFrac: Double = 0
 }
 
 // MARK: - 进程排行条目
@@ -165,9 +168,9 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 ClaudeRow(title: "模型", value: model.claudeModel)
-                ClaudeRow(title: "上下文", value: model.claudeContext)
-                ClaudeRow(title: "5h 限额", value: model.claudeFive)
-                ClaudeRow(title: "7d 限额", value: model.claudeSeven)
+                ClaudeMetricRow(title: "上下文", value: model.claudeContext, fraction: model.claudeContextFrac)
+                ClaudeMetricRow(title: "5h 限额", value: model.claudeFive, fraction: model.claudeFiveFrac)
+                ClaudeMetricRow(title: "7d 限额", value: model.claudeSeven, fraction: model.claudeSevenFrac)
             }
         }
         .padding(12)
@@ -430,10 +433,49 @@ struct ClaudeRow: View {
             Text(title)
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Spacer()
+                .frame(width: 48, alignment: .leading)
             Text(value)
                 .font(.callout.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
+    }
+}
+
+/// 带进度条的 Claude 指标行（>80% 橙色、>95% 红色）。
+struct ClaudeMetricRow: View {
+    let title: String
+    let value: String
+    let fraction: Double
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(width: 48, alignment: .leading)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.08))
+                    Capsule()
+                        .fill(barColor)
+                        .frame(width: max(4, geo.size.width * fraction))
+                }
+            }
+            .frame(width: 56, height: 5)
+            Text(value)
+                .font(.callout.monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    private var barColor: Color {
+        if fraction >= 0.95 { return .red }
+        if fraction >= 0.8 { return .orange }
+        return .accentColor
     }
 }
 
