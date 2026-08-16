@@ -101,7 +101,7 @@ struct CatPainter {
 
     private var cfg: BreedConfig { breed.config }
 
-    // MARK: - 几何（22×22 坐标空间）
+    // MARK: - 几何（30×18 宽扁画布，参考 RunCatNeo 精灵比例）
 
     private struct Geo {
         var body: NSRect
@@ -121,36 +121,37 @@ struct CatPainter {
         var footY: CGFloat
     }
 
-    /// 头部基准：大头萌系
-    private func headRadius() -> CGFloat { 4.0 * cfg.headScale }
+    /// 头部基准：大头萌系（相对 30×18 画布）
+    private func headRadius() -> CGFloat { 3.9 * cfg.headScale }
 
     private func headCenter() -> NSPoint {
         let r = headRadius()
-        return NSPoint(x: 15.4 + (r - 4.0) * 0.4, y: 13.6)
+        return NSPoint(x: 23.8 + (r - 3.9) * 0.4, y: 10.4)
     }
 
     private func runningGeo() -> Geo {
         let r = headRadius()
         let head = headCenter()
         let bw = cfg.bodyW, bh = cfg.bodyH
-        let w = 11.6 * bw, h = 7.8 * bh
-        let body = NSRect(x: 4.7 - (w - 11.6) / 2, y: 7.3 - (h - 7.8) / 2, width: w, height: h)
+        // 长身体、低重心：贴近地面，横向舒展
+        let w = 19.0 * bw, h = 6.6 * bh
+        let body = NSRect(x: 4.0 - (w - 19.0) / 2, y: 6.0 - (h - 6.6) / 2, width: w, height: h)
         return Geo(body: body, head: head, headR: r,
-                   hipY: body.minY + 1.0, footY: 5.0,
-                   backX: (body.minX + 2.3, body.minX + 4.2),
-                   frontX: (body.maxX - 3.7, body.maxX - 1.9),
-                   tailAmp: cfg.tailWidth > 2.4 ? 2.2 : 2.6)
+                   hipY: body.minY + 0.6, footY: 4.3,
+                   backX: (body.minX + 3.0, body.minX + 5.0),
+                   frontX: (body.maxX - 3.4, body.maxX - 1.6),
+                   tailAmp: cfg.tailWidth > 2.4 ? 2.0 : 2.4)
     }
 
     private func sittingGeo() -> (SitGeo, Geo) {
         let g = runningGeo()
         let bw = cfg.bodyW, bh = cfg.bodyH
-        let hw = 5.2 * bw, hh = 5.4 * bh
-        let haunch = NSRect(x: 5.0 - (hw - 5.2) / 2, y: 6.6 - (hh - 5.4) / 2, width: hw, height: hh)
-        let bw2 = 9.2 * bw, bh2 = 6.8 * bh
-        let body = NSRect(x: 7.6 - (bw2 - 9.2) / 2, y: 8.2 - (bh2 - 6.8) / 2, width: bw2, height: bh2)
+        let hw = 6.2 * bw, hh = 6.0 * bh
+        let haunch = NSRect(x: 5.2 - (hw - 6.2) / 2, y: 5.6 - (hh - 6.0) / 2, width: hw, height: hh)
+        let bw2 = 13.5 * bw, bh2 = 6.0 * bh
+        let body = NSRect(x: 8.6 - (bw2 - 13.5) / 2, y: 7.4 - (bh2 - 6.0) / 2, width: bw2, height: bh2)
         return (SitGeo(haunch: haunch, body: body,
-                       frontXs: [body.maxX - 2.7, body.maxX - 0.4], footY: 4.9), g)
+                       frontXs: [body.maxX - 2.3, body.maxX - 0.1], footY: 4.9), g)
     }
 
     // MARK: - 帧生成
@@ -179,8 +180,13 @@ struct CatPainter {
     }
 
     func appIcon() -> NSImage {
-        FrameRenderer.makeImage(ptSize: 512, pixelScale: 2) {
-            let bg = NSBezierPath(roundedRect: NSRect(x: 0.8, y: 0.8, width: 20.4, height: 20.4),
+        FrameRenderer.makeImage(ptW: 512, ptH: 512, pixelScale: 1) {
+            let cg = NSGraphicsContext.current!.cgContext
+            // 将 30×18 的坐姿居中放入方形画布
+            let s: CGFloat = 512 / 30
+            cg.translateBy(x: 0, y: (512 - 18 * s) / 2)
+            cg.scaleBy(x: s, y: s)
+            let bg = NSBezierPath(roundedRect: NSRect(x: 0.8, y: 0.8, width: 28.4, height: 16.4),
                                   xRadius: 4.6, yRadius: 4.6)
             let top = cfg.body.blended(withFraction: 0.35, of: .white) ?? cfg.body
             let bottom = cfg.body.blended(withFraction: 0.25, of: .black) ?? cfg.body
@@ -200,29 +206,29 @@ struct CatPainter {
         // 呼吸起伏（4 帧：吸-呼-吸-微呼）
         let breath: [CGFloat] = [1.0, 1.05, 1.0, 1.035]
         let s = breath[frame % breath.count]
-        cg.translateBy(x: 11, y: 8.5)
+        cg.translateBy(x: 14, y: 8.0)
         cg.scaleBy(x: s, y: s)
-        cg.translateBy(x: -11, y: -8.5)
+        cg.translateBy(x: -14, y: -8.0)
 
         // 尾巴绕到身前
         let tail = NSBezierPath()
-        tail.move(to: NSPoint(x: 5.6, y: 8.6))
-        tail.curve(to: NSPoint(x: 8.2, y: 5.4),
-                   controlPoint1: NSPoint(x: 3.8, y: 7.6),
-                   controlPoint2: NSPoint(x: 5.6, y: 4.6))
+        tail.move(to: NSPoint(x: 5.4, y: 7.4))
+        tail.curve(to: NSPoint(x: 9.0, y: 4.4),
+                   controlPoint1: NSPoint(x: 3.4, y: 6.2),
+                   controlPoint2: NSPoint(x: 5.8, y: 3.6))
         tail.lineWidth = cfg.tailWidth
         tail.lineCapStyle = .round
         (cfg.mask ?? bodyC).setStroke()
         tail.stroke()
 
-        // 身体（蜷成一团）
-        let body = NSBezierPath(ovalIn: NSRect(x: 5.0, y: 4.4, width: 12.0, height: 9.6))
+        // 身体（蜷成一团，长形）
+        let body = NSBezierPath(ovalIn: NSRect(x: 4.0, y: 3.8, width: 20.0, height: 8.8))
         bodyC.setFill(); body.fill()
         outlineC.setStroke(); body.lineWidth = 0.7; body.stroke()
 
         // 头（贴在右侧）
-        let headC = NSPoint(x: 14.4, y: 10.2)
-        let r: CGFloat = 3.5
+        let headC = NSPoint(x: 21.4, y: 8.6)
+        let r: CGFloat = 3.3
         let head = NSBezierPath(ovalIn: NSRect(x: headC.x - r, y: headC.y - r, width: r * 2, height: r * 2))
         bodyC.setFill(); head.fill()
         outlineC.setStroke(); head.lineWidth = 0.7; head.stroke()
@@ -252,12 +258,12 @@ struct CatPainter {
 
         // Zzz（随帧漂移上浮）
         outlineC.withAlphaComponent(0.5).setStroke()
-        let drift = CGFloat(frame % 4) * 0.55
+        let drift = CGFloat(frame % 4) * 0.4
         let zx = headC.x + 2.0
-        let zy = headC.y + r * 1.5 + drift
+        let zy = headC.y + r * 1.2 + drift
         let z = NSBezierPath()
-        z.move(to: NSPoint(x: zx, y: zy + 1.8))
-        z.line(to: NSPoint(x: zx + 2.4, y: zy))
+        z.move(to: NSPoint(x: zx, y: zy + 1.6))
+        z.line(to: NSPoint(x: zx + 2.2, y: zy))
         z.line(to: NSPoint(x: zx, y: zy))
         z.lineWidth = 0.6
         z.lineCapStyle = .round
@@ -266,9 +272,9 @@ struct CatPainter {
         // 第二个 z（更小更靠上）
         if frame % 4 >= 2 {
             let z2 = NSBezierPath()
-            z2.move(to: NSPoint(x: zx + 1.6, y: zy + 3.4))
-            z2.line(to: NSPoint(x: zx + 3.6, y: zy + 2.2))
-            z2.line(to: NSPoint(x: zx + 1.6, y: zy + 2.2))
+            z2.move(to: NSPoint(x: zx + 1.5, y: zy + 2.6))
+            z2.line(to: NSPoint(x: zx + 3.3, y: zy + 1.6))
+            z2.line(to: NSPoint(x: zx + 1.5, y: zy + 1.6))
             z2.lineWidth = 0.5
             z2.lineCapStyle = .round
             z2.lineJoinStyle = .round
@@ -296,14 +302,14 @@ struct CatPainter {
         cg.translateBy(x: 0, y: bounce)
 
         // 尾巴
-        let tailStart = NSPoint(x: g.body.minX + 0.3, y: g.body.midY + 0.9)
-        let tailTip = NSPoint(x: g.body.minX - 3.2,
-                              y: g.body.midY + 0.6 + tailAmp * sin(phi + 1.3 + 0.7 * stride))
+        let tailStart = NSPoint(x: g.body.minX + 0.3, y: g.body.midY + 0.7)
+        let tailTip = NSPoint(x: g.body.minX - 2.6,
+                              y: g.body.midY + 0.5 + tailAmp * sin(phi + 1.3 + 0.7 * stride))
         let tail = NSBezierPath()
         tail.move(to: tailStart)
         tail.curve(to: tailTip,
-                   controlPoint1: NSPoint(x: g.body.minX - 1.1, y: g.body.midY + 2.6),
-                   controlPoint2: NSPoint(x: g.body.minX - 4.4, y: g.body.midY + 3.0))
+                   controlPoint1: NSPoint(x: g.body.minX - 0.9, y: g.body.midY + 2.4),
+                   controlPoint2: NSPoint(x: g.body.minX - 3.4, y: g.body.midY + 2.8))
         tail.lineWidth = cfg.tailWidth
         tail.lineCapStyle = .round
         tailColor.setStroke()

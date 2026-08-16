@@ -105,7 +105,7 @@ struct DashboardView: View {
             if let img = model.breedImage {
                 Image(nsImage: img)
                     .resizable()
-                    .frame(width: 36, height: 36)
+                    .frame(width: 42, height: 25)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text("ZoomCat").font(.headline)
@@ -254,7 +254,7 @@ struct DashboardView: View {
                         VStack(spacing: 3) {
                             Image(nsImage: item.1)
                                 .resizable()
-                                .frame(width: 30, height: 30)
+                                .frame(width: 46, height: 28)
                             Text(item.0)
                                 .font(.system(size: 9))
                                 .foregroundStyle(.secondary)
@@ -297,7 +297,7 @@ struct DashboardView: View {
                             VStack(spacing: 3) {
                                 Image(nsImage: item.1)
                                     .resizable()
-                                    .frame(width: 28, height: 28)
+                                    .frame(width: 42, height: 25)
                                 Text(item.0)
                                     .font(.system(size: 9))
                                     .foregroundStyle(.secondary)
