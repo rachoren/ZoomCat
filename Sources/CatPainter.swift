@@ -206,6 +206,12 @@ struct CatPainter {
         let phi = phase * 2 * .pi
         let tailColor = cfg.mask ?? cfg.body
 
+        // 奔跑弹跳：每步轻微上下起伏，奔跑更有节奏感（参考原版 RunCat）
+        let bounce = 0.5 * abs(sin(phi * 2))
+        let cg = NSGraphicsContext.current!.cgContext
+        cg.saveGState()
+        cg.translateBy(x: 0, y: bounce)
+
         // 尾巴
         let tailStart = NSPoint(x: g.body.minX + 0.3, y: g.body.midY + 0.9)
         let tailTip = NSPoint(x: g.body.minX - 3.2,
@@ -247,6 +253,8 @@ struct CatPainter {
 
         // 脸（眼睛/鼻子/嘴/腮红/胡须）
         drawFace(g)
+
+        cg.restoreGState()
     }
 
     // MARK: - 端坐姿态

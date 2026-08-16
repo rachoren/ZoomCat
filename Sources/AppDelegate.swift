@@ -28,6 +28,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var showTempInBar: Bool {
         didSet { UserDefaults.standard.set(showTempInBar, forKey: "showTempInBar") }
     }
+    private var showUsageInBar: Bool {
+        didSet { UserDefaults.standard.set(showUsageInBar, forKey: "showUsageInBar") }
+    }
     private var selectedBreed: CatBreed {
         didSet { UserDefaults.standard.set(selectedBreed.rawValue, forKey: "catBreed") }
     }
@@ -42,6 +45,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let saved = UserDefaults.standard.string(forKey: "catBreed")
         selectedBreed = saved.flatMap(CatBreed.init(rawValue:)) ?? .ragdoll
         showTempInBar = UserDefaults.standard.bool(forKey: "showTempInBar")
+        showUsageInBar = UserDefaults.standard.bool(forKey: "showUsageInBar")
         super.init()
     }
 
@@ -53,17 +57,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.imagePosition = .imageOnly
         statusItem.button?.toolTip = "ZoomCat"
+        // 等宽字体：菜单栏数字对齐美观（参考原版 RunCat）
+        if #available(macOS 10.15, *) {
+            statusItem.button?.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        }
 
         rebuildFrames()
         buildMenu()
-        applyTempInBar()
+        applyStatusBarText()
 
         let t = Timer(timeInterval: 1.0 / 20.0, target: self,
                       selector: #selector(tick), userInfo: nil, repeats: true)
         RunLoop.main.add(t, forMode: .common)
         timer = t
 
+        // 睡眠时暂停动画，唤醒后恢复（避免唤醒瞬间动画跳变）
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(handleSleep),
+            name: NSWorkspace.willSleepNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(handleWake),
+            name: NSWorkspace.didWakeNotification, object: nil)
+
         maybePromptDaemonInstall()
+    }
+
+    @objc private func handleSleep() {
+        timer?.invalidate()
+        timer = nil
+        lastFrame = Date()
+    }
+
+    @objc private func handleWake() {
+        guard timer == nil else { return }
+        lastFrame = Date()
+        let t = Timer(timeInterval: 1.0 / 20.0, target: self,
+                      selector: #selector(tick), userInfo: nil, repeats: true)
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
     }
 
     // MARK: - 主循环
@@ -77,6 +108,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             lastCpuSample = now
             cpuMenuItem.title = String(format: "CPU 使用率: %.1f%%", smoothedCPU * 100)
             stateMenuItem.title = "状态: " + stateText
+            applyStatusBarText()
         }
 
         // 温度：2s
@@ -88,7 +120,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 tempMenuItem.title = "CPU 温度: --"
             }
-            applyTempInBar()
+            applyStatusBarText()
         }
 
         // 热状态 + 磁盘：5s
@@ -156,11 +188,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(stateMenuItem)
         menu.addItem(.separator())
 
+        let usageItem = NSMenuItem(title: "菜单栏显示 CPU 使用率", action: #selector(toggleUsageInBar(_:)),
+                                   keyEquivalent: "")
+        usageItem.target = self
+        usageItem.state = showUsageInBar ? .on : .off
+        menu.addItem(usageItem)
+
         let barItem = NSMenuItem(title: "菜单栏显示 CPU 温度", action: #selector(toggleTempInBar(_:)),
                                  keyEquivalent: "")
         barItem.target = self
         barItem.state = showTempInBar ? .on : .off
         menu.addItem(barItem)
+
+        menu.addItem(.separator())
 
         let daemonItem = NSMenuItem(title: "温度监控助手", action: nil, keyEquivalent: "")
         daemonItem.submenu = buildDaemonMenu()
@@ -188,6 +228,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         refreshLoginItem()
 
         menu.addItem(.separator())
+        let about = NSMenuItem(title: "关于 ZoomCat", action: #selector(showAbout(_:)),
+                               keyEquivalent: "")
+        about.target = self
+        menu.addItem(about)
         let quit = NSMenuItem(title: "退出 ZoomCat", action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
         quit.target = NSApp
@@ -196,10 +240,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
     }
 
+    @objc private func toggleUsageInBar(_ sender: NSMenuItem) {
+        showUsageInBar.toggle()
+        sender.state = showUsageInBar ? .on : .off
+        applyStatusBarText()
+    }
+
     @objc private func toggleTempInBar(_ sender: NSMenuItem) {
         showTempInBar.toggle()
         sender.state = showTempInBar ? .on : .off
-        applyTempInBar()
+        applyStatusBarText()
+    }
+
+    @objc private func showAbout(_ sender: Any?) {
+        NSApp.activate(ignoringOtherApps: true)
+        let credits = NSAttributedString(
+            string: "随 CPU 奔跑的菜单栏猫咪\n纯 Swift + AppKit，零第三方依赖",
+            attributes: [.font: NSFont.systemFont(ofSize: 11)])
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "ZoomCat",
+            .applicationVersion: "v0.2",
+            .credits: credits,
+        ])
     }
 
     // MARK: - 温度监控助手（LaunchDaemon）
@@ -261,7 +323,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if ok {
                     self.cpuTemp = nil
                     self.tempMenuItem.title = "CPU 温度: --"
-                    self.applyTempInBar()
+                    self.applyStatusBarText()
                     self.updateDaemonItem()
                 } else {
                     let alert = NSAlert()
@@ -315,7 +377,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 self.tempMenuItem.title = "CPU 温度: --"
             }
-            self.applyTempInBar()
+            self.applyStatusBarText()
         }
     }
 
@@ -353,12 +415,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func applyTempInBar() {
+    /// 菜单栏文字：CPU 使用率 / 温度 组合显示在猫的左侧（参考原版 RunCat 布局）。
+    private func applyStatusBarText() {
         guard let button = statusItem.button else { return }
-        if showTempInBar {
-            let title = cpuTemp.map { String(format: "%.0f°", $0) } ?? "--"
-            if button.title != title || button.imagePosition != .imageLeading {
-                button.imagePosition = .imageLeading
+        if showUsageInBar || showTempInBar {
+            var parts: [String] = []
+            if showUsageInBar {
+                parts.append(String(format: "%.1f%%", smoothedCPU * 100))
+            }
+            if showTempInBar {
+                if let t = cpuTemp {
+                    parts.append(String(format: "%.0f°", t))
+                } else {
+                    parts.append("--")
+                }
+            }
+            let title = parts.joined(separator: " ")
+            if button.title != title || button.imagePosition != .imageTrailing {
+                button.imagePosition = .imageTrailing
                 button.title = title
             }
         } else if button.title != "" || button.imagePosition != .imageOnly {
