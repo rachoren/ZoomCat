@@ -27,6 +27,23 @@ final class DashboardModel: ObservableObject {
     @Published var daemonInstalled = false
     @Published var daemonBusy = false
     @Published var loginAtLaunch = false
+
+    @Published var topCPU: [ProcessEntry] = []
+    @Published var topMemory: [ProcessEntry] = []
+}
+
+// MARK: - 进程排行条目
+
+enum ProcessMetric: String, CaseIterable {
+    case cpu, memory
+}
+
+struct ProcessEntry: Identifiable, Equatable {
+    let id: Int32
+    let name: String
+    let valueText: String
+    let fraction: Double // 0-1（相对当前榜首）
+    let icon: NSImage?
 }
 
 // MARK: - 仪表盘视图
@@ -41,6 +58,7 @@ struct DashboardView: View {
     let onToggleLogin: (Bool) -> Void
     let onAbout: () -> Void
     let onQuit: () -> Void
+    @State private var processMetric: ProcessMetric = .cpu
 
     var body: some View {
         ScrollView {
@@ -48,6 +66,7 @@ struct DashboardView: View {
                 header
                 infoGrid
                 graphCard
+                processSection
                 breedSection
                 settingsSection
                 footer
@@ -100,6 +119,48 @@ struct DashboardView: View {
                 .foregroundStyle(.secondary)
             HistoryGraph(values: model.cpuHistory)
                 .frame(height: 54)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(.thinMaterial))
+    }
+
+    // MARK: 占用排行（Top 3 进程）
+
+    private var processSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("占用排行 · Top 3")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Picker("", selection: $processMetric) {
+                    Text("CPU").tag(ProcessMetric.cpu)
+                    Text("内存").tag(ProcessMetric.memory)
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 108)
+                .controlSize(.small)
+            }
+
+            let list = processMetric == .cpu ? model.topCPU : model.topMemory
+            if list.isEmpty {
+                Text("采样中…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+            } else if processMetric == .cpu, list.allSatisfy({ $0.fraction < 0.005 }) {
+                Text("系统空闲 · 无显著占用")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+            } else {
+                ForEach(list) { entry in
+                    ProcessRow(entry: entry)
+                }
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -268,6 +329,42 @@ struct HistoryGraph: View {
                                     style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
                 }
             }
+        }
+    }
+}
+
+// MARK: - 进程排行行
+
+struct ProcessRow: View {
+    let entry: ProcessEntry
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if let icon = entry.icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 16, height: 16)
+            } else {
+                Color.clear.frame(width: 16, height: 16)
+            }
+            Text(entry.name)
+                .font(.callout)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.08))
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.85))
+                        .frame(width: max(4, geo.size.width * entry.fraction))
+                }
+            }
+            .frame(width: 64, height: 6)
+            Text(entry.valueText)
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 58, alignment: .trailing)
         }
     }
 }

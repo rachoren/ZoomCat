@@ -28,6 +28,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastHistoryPush = Date()
     private var lastNetworkCounters: (rx: UInt64, tx: UInt64)?
     private var lastNetworkSample = Date()
+    private var cpuProcCache = ProcessMonitor.CPUCache()
+    private var lastProcSample = Date()
 
     private var showTempInBar: Bool {
         didSet {
@@ -164,6 +166,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             syncLoginState()
         }
 
+        // 占用排行（Top 3 进程）：2s，后台采集避免卡顿
+        if now.timeIntervalSince(lastProcSample) >= 2.0 {
+            lastProcSample = now
+            refreshTopProcesses()
+        }
+
         // 动画：帧率随 CPU 提升
         let dt = now.timeIntervalSince(lastFrame)
         lastFrame = now
@@ -171,7 +179,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if smoothedCPU < 0.06 {
             fps = 1.6
         } else {
-            fps = 5 + smoothedCPU * 15 // 5 ~ 20 帧/秒（小图标足够流畅，兼顾省电）
+            fps = 3 + smoothedCPU * 7 // 3 ~ 10 帧/秒（小图标足够流畅，控制状态栏重绘开销）
         }
         accumulator += dt * fps
         if accumulator >= 1 {
@@ -208,6 +216,62 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case .critical: return "危急 🚨"
         @unknown default: return "未知"
         }
+    }
+
+    // MARK: - 占用排行采集
+
+    private func refreshTopProcesses() {
+        let cache = cpuProcCache
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let (entries, newCache) = ProcessMonitor.snapshot(cache: cache)
+            // 排除系统内核与自身
+            let filtered = entries.filter { $0.pid > 0 && $0.name != "kernel_task" }
+            // 只对 Top 候选补路径（用于图标），避免逐个进程查路径的开销
+            let cpuTop = Array(filtered.sorted { $0.cpuPercent > $1.cpuPercent }.prefix(3))
+                .map { TopProcess(pid: $0.pid, name: $0.name, path: ProcessMonitor.path(for: $0.pid),
+                                  cpuPercent: $0.cpuPercent, memoryBytes: $0.memoryBytes) }
+            let memTop = Array(filtered.sorted { $0.memoryBytes > $1.memoryBytes }.prefix(3))
+                .map { TopProcess(pid: $0.pid, name: $0.name, path: ProcessMonitor.path(for: $0.pid),
+                                  cpuPercent: $0.cpuPercent, memoryBytes: $0.memoryBytes) }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.cpuProcCache = newCache
+                self.model.topCPU = Self.buildProcessEntries(cpuTop, metric: .cpu)
+                self.model.topMemory = Self.buildProcessEntries(memTop, metric: .memory)
+            }
+        }
+    }
+
+    private static func buildProcessEntries(_ procs: [TopProcess], metric: ProcessMetric) -> [ProcessEntry] {
+        let maxVal: Double
+        switch metric {
+        case .cpu: maxVal = procs.map { $0.cpuPercent }.max() ?? 1
+        case .memory: maxVal = Double(procs.map { $0.memoryBytes }.max() ?? 1)
+        }
+        return procs.map { p in
+            let value = metric == .cpu ? p.cpuPercent : Double(p.memoryBytes)
+            let text = metric == .cpu
+                ? String(format: "%.1f%%", p.cpuPercent)
+                : Self.formatBytes(p.memoryBytes)
+            return ProcessEntry(id: p.pid, name: p.name, valueText: text,
+                                fraction: maxVal > 0 ? min(value / maxVal, 1) : 0,
+                                icon: Self.appIcon(forPath: p.path))
+        }
+    }
+
+    private static func appIcon(forPath path: String?) -> NSImage? {
+        guard var p = path else { return nil }
+        // 取 .app 包路径以获得正确图标（可执行文件路径通常只有通用图标）
+        if let r = p.range(of: ".app/") {
+            p = String(p[..<r.lowerBound]) + ".app"
+        }
+        return NSWorkspace.shared.icon(forFile: p)
+    }
+
+    private static func formatBytes(_ b: UInt64) -> String {
+        if b >= 1 << 30 { return String(format: "%.1f GB", Double(b) / 1e9) }
+        if b >= 1 << 20 { return String(format: "%.0f MB", Double(b) / 1e6) }
+        return String(format: "%.0f KB", Double(b) / 1e3)
     }
 
     // MARK: - Dashboard 动作
