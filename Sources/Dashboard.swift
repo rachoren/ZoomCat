@@ -378,12 +378,45 @@ final class DashboardController {
     private let model: DashboardModel
     private weak var app: AppDelegate?
     private var hosting: NSHostingController<DashboardView>?
+    private var eventMonitor: Any?
+    private var resignObserver: NSObjectProtocol?
 
     init(app: AppDelegate, model: DashboardModel) {
         self.app = app
         self.model = model
         popover.behavior = .transient
         popover.animates = true
+    }
+
+    deinit {
+        if let eventMonitor { NSEvent.removeMonitor(eventMonitor) }
+        if let resignObserver {
+            NotificationCenter.default.removeObserver(resignObserver)
+        }
+    }
+
+    /// 安装全局鼠标监视器：点击弹窗外部任意位置自动收起。
+    private func installDismissMonitors() {
+        guard eventMonitor == nil else { return }
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            self?.dismissIfClickOutside()
+        }
+        // 应用失去焦点（如 Cmd+Tab 切走）时也收起
+        resignObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil, queue: .main) { [weak self] _ in
+            self?.popover.performClose(nil)
+        }
+    }
+
+    private func dismissIfClickOutside() {
+        guard popover.isShown else { return }
+        let loc = NSEvent.mouseLocation // 屏幕坐标（左下原点），与 window.frame 同坐标系
+        if let frame = popover.contentViewController?.view.window?.frame,
+           frame.contains(loc) {
+            return // 点击仍在弹窗内
+        }
+        popover.performClose(nil)
     }
 
     func show(from button: NSStatusBarButton) {
@@ -409,6 +442,7 @@ final class DashboardController {
         let fitting = hosting.view.fittingSize
         popover.contentSize = NSSize(width: 300, height: min(max(fitting.height, 240), 600))
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        installDismissMonitors()
     }
 
     func close() {
