@@ -191,7 +191,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if accumulator >= 1 {
             let steps = Int(accumulator)
             accumulator -= Double(steps)
-            frameIndex = (frameIndex + steps) % 8
+            frameIndex += steps
         }
 
         // 仅当画面真正变化时才设置图像，避免菜单栏无谓重绘

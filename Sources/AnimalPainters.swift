@@ -25,32 +25,31 @@ struct ShibaPainter {
             hipY: 8.3, footY: 5.0, backX: (7.0, 8.9), frontX: (12.6, 14.4))
     }
 
-    private struct SitGeo {
-        var haunch: NSRect
-        var body: NSRect
-        var frontXs: [CGFloat]
-    }
-
     func runningFrames() -> [NSImage] {
-        (0..<8).map { i in
-            FrameRenderer.makeImage { drawRunning(phase: Double(i) / 8.0) }
+        (0..<16).map { i in
+            FrameRenderer.makeImage { drawRunning(frame: i) }
         }
     }
 
     func sittingFrames() -> [NSImage] {
-        (0..<2).map { _ in
-            FrameRenderer.makeImage { drawSitting() }
+        (0..<4).map { i in
+            FrameRenderer.makeImage { drawSitting(frame: i) }
         }
     }
 
-    private func drawRunning(phase: Double) {
+    private func drawRunning(frame: Int) {
         let g = geo
+        let phase = Double(frame % 8) / 8.0
+        let stride = Double(frame / 8)
         let phi = phase * 2 * .pi
+        let cg = NSGraphicsContext.current!.cgContext
+        cg.saveGState()
+        cg.translateBy(x: 0, y: CGFloat((0.35 - 0.10 * stride) * abs(sin(phi * 2))))
 
-        // 卷尾巴（先画，卷在身后上方）
+        // 卷尾巴（两拍略不同）
         let tail = NSBezierPath()
         tail.move(to: NSPoint(x: g.body.minX + 0.5, y: g.body.midY + 0.5))
-        tail.curve(to: NSPoint(x: g.body.minX - 1.1, y: g.body.maxY + 1.8),
+        tail.curve(to: NSPoint(x: g.body.minX - 1.1 - 0.4 * stride, y: g.body.maxY + 1.8),
                    controlPoint1: NSPoint(x: g.body.minX - 0.6, y: g.body.midY + 1.7),
                    controlPoint2: NSPoint(x: g.body.minX - 1.7, y: g.body.maxY + 0.4))
         tail.curve(to: NSPoint(x: g.body.minX + 0.8, y: g.body.maxY + 0.8),
@@ -67,7 +66,6 @@ struct ShibaPainter {
         let bodyPath = NSBezierPath(ovalIn: g.body)
         tan.setFill(); bodyPath.fill()
         outline.setStroke(); bodyPath.lineWidth = 0.7; bodyPath.stroke()
-        // 白肚皮
         white.setFill()
         NSBezierPath(ovalIn: NSRect(x: g.body.midX - g.body.width * 0.40, y: g.body.minY + g.body.height * 0.10,
                                     width: g.body.width * 0.80, height: g.body.height * 0.48)).fill()
@@ -75,11 +73,15 @@ struct ShibaPainter {
         drawLeg(hip: NSPoint(x: g.frontX.0, y: g.hipY), offset: phi)
         drawLeg(hip: NSPoint(x: g.frontX.1, y: g.hipY), offset: phi + .pi)
 
-        drawHead(g)
+        drawHead(g, blink: false)
+        cg.restoreGState()
     }
 
-    private func drawSitting() {
+    private func drawSitting(frame: Int) {
         let g = geo
+        let blink = (frame == 2)
+        let tailWave = CGFloat(frame % 2)
+
         let haunch = NSBezierPath(ovalIn: NSRect(x: 5.0, y: 6.6, width: 5.2, height: 5.4))
         tan.setFill(); haunch.fill()
         outline.setStroke(); haunch.lineWidth = 0.7; haunch.stroke()
@@ -100,13 +102,13 @@ struct ShibaPainter {
             leg.stroke()
         }
 
-        // 卷尾巴
+        // 卷尾巴（摇动）
         let tail = NSBezierPath()
         tail.move(to: NSPoint(x: 5.4, y: 10.8))
-        tail.curve(to: NSPoint(x: 4.2, y: 13.4),
+        tail.curve(to: NSPoint(x: 4.2 + tailWave * 0.6, y: 13.4),
                    controlPoint1: NSPoint(x: 3.6, y: 11.6),
                    controlPoint2: NSPoint(x: 3.4, y: 12.9))
-        tail.curve(to: NSPoint(x: 5.8, y: 12.8),
+        tail.curve(to: NSPoint(x: 5.8 + tailWave * 0.5, y: 12.8),
                    controlPoint1: NSPoint(x: 5.0, y: 13.9),
                    controlPoint2: NSPoint(x: 6.1, y: 13.4))
         tail.lineWidth = 2.8
@@ -114,21 +116,19 @@ struct ShibaPainter {
         tan.setStroke()
         tail.stroke()
 
-        drawHead(g)
+        drawHead(g, blink: blink)
     }
 
-    private func drawHead(_ g: Geo) {
+    private func drawHead(_ g: Geo, blink: Bool) {
         let r = g.headR
         let h = g.head
         let headPath = NSBezierPath(ovalIn: NSRect(x: h.x - r, y: h.y - r, width: r * 2, height: r * 2))
         tan.setFill(); headPath.fill()
         outline.setStroke(); headPath.lineWidth = 0.7; headPath.stroke()
 
-        // 白色口鼻
         white.setFill()
         NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.25, y: h.y - r * 0.55, width: r * 1.15, height: r * 0.85)).fill()
 
-        // 耳朵（小三角）
         for side: CGFloat in [-1, 1] {
             let ear = NSBezierPath()
             ear.move(to: NSPoint(x: h.x + side * r * 0.55, y: h.y + r * 0.55))
@@ -139,12 +139,24 @@ struct ShibaPainter {
             outline.setStroke(); ear.lineWidth = 0.6; ear.stroke()
         }
 
-        // 眼睛
-        eye.setFill()
-        let es: CGFloat = 0.9
-        NSBezierPath(ovalIn: NSRect(x: h.x - r * 0.35, y: h.y + r * 0.12, width: es, height: es)).fill()
-        NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.30, y: h.y + r * 0.12, width: es, height: es)).fill()
-        // 鼻子（口鼻前端）
+        if blink {
+            outline.setStroke()
+            for side: CGFloat in [-1, 1] {
+                let eye = NSBezierPath()
+                eye.move(to: NSPoint(x: h.x + side * r * 0.52, y: h.y + r * 0.15))
+                eye.curve(to: NSPoint(x: h.x + side * r * 0.12, y: h.y + r * 0.15),
+                          controlPoint1: NSPoint(x: h.x + side * r * 0.38, y: h.y + r * 0.35),
+                          controlPoint2: NSPoint(x: h.x + side * r * 0.26, y: h.y + r * 0.35))
+                eye.lineWidth = 0.5
+                eye.lineCapStyle = .round
+                eye.stroke()
+            }
+        } else {
+            eye.setFill()
+            let es: CGFloat = 0.9
+            NSBezierPath(ovalIn: NSRect(x: h.x - r * 0.35, y: h.y + r * 0.12, width: es, height: es)).fill()
+            NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.30, y: h.y + r * 0.12, width: es, height: es)).fill()
+        }
         outline.setFill()
         NSBezierPath(ovalIn: NSRect(x: h.x + r * 1.05, y: h.y - r * 0.30, width: 0.8, height: 0.6)).fill()
     }
@@ -176,34 +188,32 @@ struct RabbitPainter {
     private var headR: CGFloat = 3.4
 
     func runningFrames() -> [NSImage] {
-        (0..<8).map { i in
-            FrameRenderer.makeImage { drawRunning(phase: Double(i) / 8.0) }
+        (0..<16).map { i in
+            FrameRenderer.makeImage { drawRunning(frame: i) }
         }
     }
 
     func sittingFrames() -> [NSImage] {
-        (0..<2).map { _ in
-            FrameRenderer.makeImage { drawSitting() }
+        (0..<4).map { i in
+            FrameRenderer.makeImage { drawSitting(frame: i) }
         }
     }
 
-    private func drawRunning(phase: Double) {
+    private func drawRunning(frame: Int) {
+        let phase = Double(frame % 8) / 8.0
+        let stride = Double(frame / 8)
         let phi = phase * 2 * .pi
         let body = NSRect(x: 5.2, y: 7.2, width: 10.8, height: 7.6)
-        let bounce = 0.6 * abs(sin(phi * 2))
         let cg = NSGraphicsContext.current!.cgContext
         cg.saveGState()
-        cg.translateBy(x: 0, y: bounce)
+        cg.translateBy(x: 0, y: CGFloat((0.6 - 0.15 * stride) * abs(sin(phi * 2))))
 
-        // 圆尾（先画）
         white.setFill()
         NSBezierPath(ovalIn: NSRect(x: body.minX - 1.6, y: body.midY + 0.2, width: 2.6, height: 2.6)).fill()
 
-        // 后腿
         drawLeg(hip: NSPoint(x: body.minX + 2.4, y: body.minY + 1.0), offset: phi + .pi)
         drawLeg(hip: NSPoint(x: body.minX + 4.2, y: body.minY + 1.0), offset: phi)
 
-        // 身体
         let bodyPath = NSBezierPath(ovalIn: body)
         white.setFill(); bodyPath.fill()
         outline.setStroke(); bodyPath.lineWidth = 0.7; bodyPath.stroke()
@@ -211,25 +221,24 @@ struct RabbitPainter {
         drawLeg(hip: NSPoint(x: body.maxX - 3.6, y: body.minY + 1.0), offset: phi)
         drawLeg(hip: NSPoint(x: body.maxX - 1.8, y: body.minY + 1.0), offset: phi + .pi)
 
-        drawHead(body)
+        drawHead(body, blink: false, earTilt: 0)
         cg.restoreGState()
     }
 
-    private func drawSitting() {
-        // 后臀
+    private func drawSitting(frame: Int) {
+        let blink = (frame == 2)
+        let earTilt = CGFloat(frame % 2) * 0.5
+
         let haunch = NSBezierPath(ovalIn: NSRect(x: 5.4, y: 6.6, width: 4.8, height: 5.6))
         white.setFill(); haunch.fill()
         outline.setStroke(); haunch.lineWidth = 0.7; haunch.stroke()
-        // 圆尾
         white.setFill()
         NSBezierPath(ovalIn: NSRect(x: 4.0, y: 9.0, width: 2.8, height: 2.8)).fill()
 
-        // 身体
         let body = NSBezierPath(ovalIn: NSRect(x: 8.0, y: 8.4, width: 8.6, height: 6.4))
         white.setFill(); body.fill()
         outline.setStroke(); body.lineWidth = 0.7; body.stroke()
 
-        // 前爪
         for x in [12.6, 14.8] {
             let leg = NSBezierPath()
             leg.move(to: NSPoint(x: x, y: 8.4))
@@ -240,38 +249,47 @@ struct RabbitPainter {
             leg.stroke()
         }
 
-        drawHead(NSRect(x: 7.0, y: 8.0, width: 9.6, height: 7.0))
+        drawHead(NSRect(x: 7.0, y: 8.0, width: 9.6, height: 7.0), blink: blink, earTilt: earTilt)
     }
 
-    private func drawHead(_ body: NSRect) {
+    private func drawHead(_ body: NSRect, blink: Bool, earTilt: CGFloat) {
         let h = headC
         let r = headR
 
-        // 长耳朵（先画在头后）
         for side: CGFloat in [-1, 1] {
-            let ear = NSBezierPath(ovalIn: NSRect(x: h.x + side * r * 0.95 - 0.7,
+            let ear = NSBezierPath(ovalIn: NSRect(x: h.x + side * r * 0.95 - 0.7 + earTilt,
                                                   y: h.y + r * 0.55,
                                                   width: 1.5, height: 4.4))
             white.setFill(); ear.fill()
             outline.setStroke(); ear.lineWidth = 0.6; ear.stroke()
-            // 粉色内耳
             pink.setFill()
-            NSBezierPath(ovalIn: NSRect(x: h.x + side * r * 0.95 - 0.35,
+            NSBezierPath(ovalIn: NSRect(x: h.x + side * r * 0.95 - 0.35 + earTilt,
                                         y: h.y + r * 0.75,
                                         width: 0.75, height: 3.2)).fill()
         }
 
-        // 头
         let headPath = NSBezierPath(ovalIn: NSRect(x: h.x - r, y: h.y - r, width: r * 2, height: r * 2))
         white.setFill(); headPath.fill()
         outline.setStroke(); headPath.lineWidth = 0.7; headPath.stroke()
 
-        // 眼睛
-        eye.setFill()
-        let es: CGFloat = 0.85
-        NSBezierPath(ovalIn: NSRect(x: h.x - r * 0.35, y: h.y + r * 0.10, width: es, height: es)).fill()
-        NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.28, y: h.y + r * 0.10, width: es, height: es)).fill()
-        // 粉鼻子
+        if blink {
+            outline.setStroke()
+            for side: CGFloat in [-1, 1] {
+                let e = NSBezierPath()
+                e.move(to: NSPoint(x: h.x + side * r * 0.50, y: h.y + r * 0.10))
+                e.curve(to: NSPoint(x: h.x + side * r * 0.08, y: h.y + r * 0.10),
+                        controlPoint1: NSPoint(x: h.x + side * r * 0.36, y: h.y + r * 0.30),
+                        controlPoint2: NSPoint(x: h.x + side * r * 0.22, y: h.y + r * 0.30))
+                e.lineWidth = 0.5
+                e.lineCapStyle = .round
+                e.stroke()
+            }
+        } else {
+            eye.setFill()
+            let es: CGFloat = 0.85
+            NSBezierPath(ovalIn: NSRect(x: h.x - r * 0.35, y: h.y + r * 0.10, width: es, height: es)).fill()
+            NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.28, y: h.y + r * 0.10, width: es, height: es)).fill()
+        }
         pink.setFill()
         NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.85, y: h.y - r * 0.25, width: 0.8, height: 0.7)).fill()
     }
@@ -302,81 +320,86 @@ struct PandaPainter {
     private var headR: CGFloat = 3.5
 
     func runningFrames() -> [NSImage] {
-        (0..<8).map { i in
-            FrameRenderer.makeImage { drawRunning(phase: Double(i) / 8.0) }
+        (0..<16).map { i in
+            FrameRenderer.makeImage { drawRunning(frame: i) }
         }
     }
 
     func sittingFrames() -> [NSImage] {
-        (0..<2).map { _ in
-            FrameRenderer.makeImage { drawSitting() }
+        (0..<4).map { i in
+            FrameRenderer.makeImage { drawSitting(frame: i) }
         }
     }
 
-    private func drawRunning(phase: Double) {
+    private func drawRunning(frame: Int) {
+        let phase = Double(frame % 8) / 8.0
+        let stride = Double(frame / 8)
         let phi = phase * 2 * .pi
         let body = NSRect(x: 5.0, y: 7.0, width: 11.2, height: 8.0)
-        let bounce = 0.4 * abs(sin(phi * 2))
         let cg = NSGraphicsContext.current!.cgContext
         cg.saveGState()
-        cg.translateBy(x: 0, y: bounce)
+        cg.translateBy(x: 0, y: CGFloat((0.4 - 0.10 * stride) * abs(sin(phi * 2))))
 
-        // 黑后腿
         drawLeg(hip: NSPoint(x: body.minX + 2.4, y: body.minY + 1.0), offset: phi + .pi, color: black)
         drawLeg(hip: NSPoint(x: body.minX + 4.2, y: body.minY + 1.0), offset: phi, color: black)
 
-        // 白身体
         let bodyPath = NSBezierPath(ovalIn: body)
         white.setFill(); bodyPath.fill()
         outline.setStroke(); bodyPath.lineWidth = 0.7; bodyPath.stroke()
 
-        // 黑前腿
         drawLeg(hip: NSPoint(x: body.maxX - 3.4, y: body.minY + 1.0), offset: phi, color: black)
         drawLeg(hip: NSPoint(x: body.maxX - 1.6, y: body.minY + 1.0), offset: phi + .pi, color: black)
 
-        drawHead(body)
+        drawHead(body, blink: false)
         cg.restoreGState()
     }
 
-    private func drawSitting() {
-        // 后臀
+    private func drawSitting(frame: Int) {
+        let blink = (frame == 2)
         let haunch = NSBezierPath(ovalIn: NSRect(x: 5.2, y: 6.8, width: 5.2, height: 5.2))
         white.setFill(); haunch.fill()
         outline.setStroke(); haunch.lineWidth = 0.7; haunch.stroke()
-        // 身体
         let body = NSBezierPath(ovalIn: NSRect(x: 7.8, y: 8.4, width: 9.0, height: 6.6))
         white.setFill(); body.fill()
         outline.setStroke(); body.lineWidth = 0.7; body.stroke()
-        // 黑前臂
         black.setFill()
         NSBezierPath(ovalIn: NSRect(x: 12.6, y: 7.4, width: 2.2, height: 3.4)).fill()
         NSBezierPath(ovalIn: NSRect(x: 14.8, y: 7.4, width: 2.2, height: 3.4)).fill()
-        drawHead(NSRect(x: 7.2, y: 8.0, width: 9.8, height: 7.0))
+        drawHead(NSRect(x: 7.2, y: 8.0, width: 9.8, height: 7.0), blink: blink)
     }
 
-    private func drawHead(_ body: NSRect) {
+    private func drawHead(_ body: NSRect, blink: Bool) {
         let h = headC
         let r = headR
 
-        // 黑耳朵（圆）
         black.setFill()
         NSBezierPath(ovalIn: NSRect(x: h.x - r * 1.25, y: h.y + r * 0.75, width: 1.7, height: 1.7)).fill()
         NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.55, y: h.y + r * 0.75, width: 1.7, height: 1.7)).fill()
 
-        // 头
         let headPath = NSBezierPath(ovalIn: NSRect(x: h.x - r, y: h.y - r, width: r * 2, height: r * 2))
         white.setFill(); headPath.fill()
         outline.setStroke(); headPath.lineWidth = 0.7; headPath.stroke()
 
-        // 黑眼圈 + 眼睛
         black.setFill()
         NSBezierPath(ovalIn: NSRect(x: h.x - r * 0.85, y: h.y - r * 0.05, width: r * 0.95, height: r * 1.05)).fill()
         NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.25, y: h.y - r * 0.05, width: r * 0.95, height: r * 1.05)).fill()
-        white.setFill()
-        let es: CGFloat = 0.55
-        NSBezierPath(ovalIn: NSRect(x: h.x - r * 0.40, y: h.y + r * 0.15, width: es, height: es)).fill()
-        NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.62, y: h.y + r * 0.15, width: es, height: es)).fill()
-        // 鼻子
+        if blink {
+            // 闭眼：黑眼圈上画细白线
+            white.setStroke()
+            for x: CGFloat in [h.x - r * 0.40, h.x + r * 0.62] {
+                let line = NSBezierPath()
+                line.move(to: NSPoint(x: x - 0.4, y: h.y + r * 0.30))
+                line.line(to: NSPoint(x: x + 0.4, y: h.y + r * 0.30))
+                line.lineWidth = 0.5
+                line.lineCapStyle = .round
+                line.stroke()
+            }
+        } else {
+            white.setFill()
+            let es: CGFloat = 0.55
+            NSBezierPath(ovalIn: NSRect(x: h.x - r * 0.40, y: h.y + r * 0.15, width: es, height: es)).fill()
+            NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.62, y: h.y + r * 0.15, width: es, height: es)).fill()
+        }
         black.setFill()
         NSBezierPath(ovalIn: NSRect(x: h.x + r * 0.75, y: h.y - r * 0.42, width: 0.9, height: 0.7)).fill()
     }
@@ -405,28 +428,29 @@ struct PenguinPainter {
     private let outline = NSColor(calibratedWhite: 0.10, alpha: 1)
 
     func runningFrames() -> [NSImage] {
-        (0..<8).map { i in
-            FrameRenderer.makeImage { drawWaddle(phase: Double(i) / 8.0) }
+        (0..<16).map { i in
+            FrameRenderer.makeImage { drawWaddle(frame: i) }
         }
     }
 
     func sittingFrames() -> [NSImage] {
-        (0..<2).map { _ in
-            FrameRenderer.makeImage { drawStanding() }
+        (0..<4).map { i in
+            FrameRenderer.makeImage { drawStanding(frame: i) }
         }
     }
 
-    private func drawWaddle(phase: Double) {
+    private func drawWaddle(frame: Int) {
+        let phase = Double(frame % 8) / 8.0
+        let stride = Double(frame / 8)
         let phi = phase * 2 * .pi
         let cg = NSGraphicsContext.current!.cgContext
         cg.saveGState()
-        // 摇摆
+        // 摇摆（两拍幅度略不同）
+        let sway = (0.08 - 0.025 * stride) * sin(phi)
         cg.translateBy(x: 11, y: 8.2)
-        cg.rotate(by: CGFloat(sin(phi) * 0.08))
+        cg.rotate(by: CGFloat(sway))
         cg.translateBy(x: -11, y: -8.2)
 
-        // 橙色脚（交替）
-        let footLift = max(0, sin(phi + .pi))
         orange.setStroke()
         for (x, off) in [(7.4, phi), (14.0, phi + .pi)] {
             let foot = NSBezierPath()
@@ -436,22 +460,17 @@ struct PenguinPainter {
             foot.lineCapStyle = .round
             foot.stroke()
         }
-        _ = footLift
 
-        // 身体（蛋形）
         let body = NSBezierPath(ovalIn: NSRect(x: 5.4, y: 6.6, width: 11.2, height: 8.8))
         black.setFill(); body.fill()
         outline.setStroke(); body.lineWidth = 0.7; body.stroke()
-        // 白肚皮
         white.setFill()
         NSBezierPath(ovalIn: NSRect(x: 7.0, y: 7.2, width: 7.0, height: 7.0)).fill()
 
-        // 鳍（两侧）
         black.setFill()
         NSBezierPath(ovalIn: NSRect(x: 3.6, y: 8.6, width: 2.0, height: 5.0)).fill()
         NSBezierPath(ovalIn: NSRect(x: 16.2, y: 8.6, width: 2.0, height: 5.0)).fill()
 
-        // 橙嘴
         orange.setFill()
         let beak = NSBezierPath()
         beak.move(to: NSPoint(x: 15.8, y: 11.2))
@@ -460,25 +479,26 @@ struct PenguinPainter {
         beak.close()
         beak.fill()
 
-        // 白眼睛
         white.setFill()
         NSBezierPath(ovalIn: NSRect(x: 14.9, y: 11.4, width: 1.3, height: 1.5)).fill()
         cg.restoreGState()
     }
 
-    private func drawStanding() {
+    private func drawStanding(frame: Int) {
+        let blink = (frame == 2)
+        let sway = CGFloat(frame % 2) * 0.25
+
         let body = NSBezierPath(ovalIn: NSRect(x: 5.4, y: 6.2, width: 11.2, height: 9.2))
         black.setFill(); body.fill()
         outline.setStroke(); body.lineWidth = 0.7; body.stroke()
         white.setFill()
         NSBezierPath(ovalIn: NSRect(x: 7.0, y: 6.8, width: 7.0, height: 7.4)).fill()
 
-        // 鳍
+        // 鳍（轻摆）
         black.setFill()
-        NSBezierPath(ovalIn: NSRect(x: 3.4, y: 7.8, width: 2.2, height: 5.6)).fill()
-        NSBezierPath(ovalIn: NSRect(x: 16.4, y: 7.8, width: 2.2, height: 5.6)).fill()
+        NSBezierPath(ovalIn: NSRect(x: 3.4 - sway, y: 7.8, width: 2.2, height: 5.6)).fill()
+        NSBezierPath(ovalIn: NSRect(x: 16.4 + sway, y: 7.8, width: 2.2, height: 5.6)).fill()
 
-        // 橙嘴 + 脚
         orange.setFill()
         let beak = NSBezierPath()
         beak.move(to: NSPoint(x: 15.8, y: 10.8))
@@ -489,8 +509,17 @@ struct PenguinPainter {
         NSBezierPath(ovalIn: NSRect(x: 7.0, y: 5.6, width: 2.6, height: 1.2)).fill()
         NSBezierPath(ovalIn: NSRect(x: 12.6, y: 5.6, width: 2.6, height: 1.2)).fill()
 
-        // 白眼睛
-        white.setFill()
-        NSBezierPath(ovalIn: NSRect(x: 14.9, y: 11.0, width: 1.3, height: 1.5)).fill()
+        if blink {
+            white.setStroke()
+            let line = NSBezierPath()
+            line.move(to: NSPoint(x: 15.0, y: 11.7))
+            line.line(to: NSPoint(x: 16.1, y: 11.7))
+            line.lineWidth = 0.5
+            line.lineCapStyle = .round
+            line.stroke()
+        } else {
+            white.setFill()
+            NSBezierPath(ovalIn: NSRect(x: 14.9, y: 11.0, width: 1.3, height: 1.5)).fill()
+        }
     }
 }

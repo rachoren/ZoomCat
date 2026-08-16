@@ -155,22 +155,26 @@ struct CatPainter {
 
     // MARK: - 帧生成
 
+    /// 奔跑：16 帧（两个步伐周期，两拍略有差异，循环更长更自然）。
     func runningFrames() -> [NSImage] {
-        (0..<8).map { i in
-            FrameRenderer.makeImage { drawRunning(phase: Double(i) / 8.0) }
+        (0..<16).map { i in
+            FrameRenderer.makeImage { drawRunning(frame: i) }
         }
     }
 
+    /// 端坐：4 帧（摇尾 + 眨眼）。
     func sittingFrames() -> [NSImage] {
-        (0..<2).map { i in
-            FrameRenderer.makeImage { drawSitting(tailUp: i == 0) }
+        (0..<4).map { i in
+            let tailUp = (i % 2 == 0)
+            let blink = (i == 2)
+            return FrameRenderer.makeImage { drawSitting(tailUp: tailUp, blink: blink) }
         }
     }
 
-    /// 睡觉姿势：2 帧呼吸起伏（低负载时蜷成一团）。
+    /// 睡觉姿势：4 帧（呼吸起伏 + Zzz 漂移）。
     func sleepingFrames() -> [NSImage] {
-        (0..<2).map { i in
-            FrameRenderer.makeImage { drawSleeping(breath: i == 0) }
+        (0..<4).map { i in
+            FrameRenderer.makeImage { drawSleeping(frame: i) }
         }
     }
 
@@ -182,19 +186,20 @@ struct CatPainter {
             let bottom = cfg.body.blended(withFraction: 0.25, of: .black) ?? cfg.body
             let grad = NSGradient(starting: top, ending: bottom) ?? NSGradient(colors: [top, bottom])!
             grad.draw(in: bg, angle: -90)
-            drawSitting(tailUp: true)
+            drawSitting(tailUp: true, blink: false)
         }
     }
 
     // MARK: - 睡觉姿态
 
-    private func drawSleeping(breath: Bool) {
+    private func drawSleeping(frame: Int) {
         let bodyC = cfg.body
         let outlineC = cfg.outline
         let cg = NSGraphicsContext.current!.cgContext
         cg.saveGState()
-        // 呼吸起伏
-        let s: CGFloat = breath ? 1.0 : 1.045
+        // 呼吸起伏（4 帧：吸-呼-吸-微呼）
+        let breath: [CGFloat] = [1.0, 1.05, 1.0, 1.035]
+        let s = breath[frame % breath.count]
         cg.translateBy(x: 11, y: 8.5)
         cg.scaleBy(x: s, y: s)
         cg.translateBy(x: -11, y: -8.5)
@@ -245,10 +250,11 @@ struct CatPainter {
             eye.stroke()
         }
 
-        // Zzz
+        // Zzz（随帧漂移上浮）
         outlineC.withAlphaComponent(0.5).setStroke()
+        let drift = CGFloat(frame % 4) * 0.55
         let zx = headC.x + 2.0
-        let zy = headC.y + r * 1.5
+        let zy = headC.y + r * 1.5 + drift
         let z = NSBezierPath()
         z.move(to: NSPoint(x: zx, y: zy + 1.8))
         z.line(to: NSPoint(x: zx + 2.4, y: zy))
@@ -257,19 +263,34 @@ struct CatPainter {
         z.lineCapStyle = .round
         z.lineJoinStyle = .round
         z.stroke()
+        // 第二个 z（更小更靠上）
+        if frame % 4 >= 2 {
+            let z2 = NSBezierPath()
+            z2.move(to: NSPoint(x: zx + 1.6, y: zy + 3.4))
+            z2.line(to: NSPoint(x: zx + 3.6, y: zy + 2.2))
+            z2.line(to: NSPoint(x: zx + 1.6, y: zy + 2.2))
+            z2.lineWidth = 0.5
+            z2.lineCapStyle = .round
+            z2.lineJoinStyle = .round
+            z2.stroke()
+        }
 
         cg.restoreGState()
     }
 
     // MARK: - 奔跑姿态
 
-    private func drawRunning(phase: Double) {
+    /// frame: 0..<16；每 8 帧一个步伐周期，两拍尾部/弹跳略有差异。
+    private func drawRunning(frame: Int) {
         let g = runningGeo()
+        let phase = Double(frame % 8) / 8.0
+        let stride = Double(frame / 8)
         let phi = phase * 2 * .pi
         let tailColor = cfg.mask ?? cfg.body
 
-        // 奔跑弹跳：每步轻微上下起伏，奔跑更有节奏感（参考原版 RunCat）
-        let bounce = 0.5 * abs(sin(phi * 2))
+        // 奔跑弹跳：两拍幅度略不同，循环更长更自然
+        let bounce = (0.5 - 0.12 * stride) * abs(sin(phi * 2))
+        let tailAmp = g.tailAmp * (1 + 0.18 * stride)
         let cg = NSGraphicsContext.current!.cgContext
         cg.saveGState()
         cg.translateBy(x: 0, y: bounce)
@@ -277,7 +298,7 @@ struct CatPainter {
         // 尾巴
         let tailStart = NSPoint(x: g.body.minX + 0.3, y: g.body.midY + 0.9)
         let tailTip = NSPoint(x: g.body.minX - 3.2,
-                              y: g.body.midY + 0.6 + g.tailAmp * sin(phi + 1.3))
+                              y: g.body.midY + 0.6 + tailAmp * sin(phi + 1.3 + 0.7 * stride))
         let tail = NSBezierPath()
         tail.move(to: tailStart)
         tail.curve(to: tailTip,
@@ -321,7 +342,7 @@ struct CatPainter {
 
     // MARK: - 端坐姿态
 
-    private func drawSitting(tailUp: Bool) {
+    private func drawSitting(tailUp: Bool, blink: Bool) {
         let (s, g) = sittingGeo()
         let tailColor = cfg.mask ?? cfg.body
 
@@ -366,7 +387,7 @@ struct CatPainter {
         // 头 / 耳朵 / 脸
         drawHead(g)
         drawEars(g)
-        drawFace(g)
+        drawFace(g, blink: blink)
     }
 
     // MARK: - 头部与五官
@@ -464,22 +485,37 @@ struct CatPainter {
         }
     }
 
-    private func drawFace(_ g: Geo) {
+    private func drawFace(_ g: Geo, blink: Bool = false) {
         let r = g.headR
         let h = g.head
 
-        // 眼睛：大圆眼 + 高光
-        let eyeW = r * 0.60, eyeH = r * 0.72
-        let leftC = NSPoint(x: h.x - r * 0.36, y: h.y + r * 0.10)
-        let rightC = NSPoint(x: h.x + r * 0.30, y: h.y + r * 0.10)
-        for c in [leftC, rightC] {
-            let eye = NSBezierPath(ovalIn: NSRect(x: c.x - eyeW / 2, y: c.y - eyeH / 2,
-                                                  width: eyeW, height: eyeH))
-            cfg.eye.setFill(); eye.fill()
-            cfg.outline.setStroke(); eye.lineWidth = 0.4; eye.stroke()
-            NSColor.white.setFill()
-            NSBezierPath(ovalIn: NSRect(x: c.x - eyeW * 0.10, y: c.y + eyeH * 0.14,
-                                        width: eyeW * 0.34, height: eyeH * 0.30)).fill()
+        if blink {
+            // 闭眼：向下弧线
+            cfg.outline.setStroke()
+            for side: CGFloat in [-1, 1] {
+                let eye = NSBezierPath()
+                eye.move(to: NSPoint(x: h.x + side * r * 0.55, y: h.y + r * 0.12))
+                eye.curve(to: NSPoint(x: h.x + side * r * 0.10, y: h.y + r * 0.12),
+                          controlPoint1: NSPoint(x: h.x + side * r * 0.40, y: h.y + r * 0.34),
+                          controlPoint2: NSPoint(x: h.x + side * r * 0.25, y: h.y + r * 0.34))
+                eye.lineWidth = 0.5
+                eye.lineCapStyle = .round
+                eye.stroke()
+            }
+        } else {
+            // 眼睛：大圆眼 + 高光
+            let eyeW = r * 0.60, eyeH = r * 0.72
+            let leftC = NSPoint(x: h.x - r * 0.36, y: h.y + r * 0.10)
+            let rightC = NSPoint(x: h.x + r * 0.30, y: h.y + r * 0.10)
+            for c in [leftC, rightC] {
+                let eye = NSBezierPath(ovalIn: NSRect(x: c.x - eyeW / 2, y: c.y - eyeH / 2,
+                                                      width: eyeW, height: eyeH))
+                cfg.eye.setFill(); eye.fill()
+                cfg.outline.setStroke(); eye.lineWidth = 0.4; eye.stroke()
+                NSColor.white.setFill()
+                NSBezierPath(ovalIn: NSRect(x: c.x - eyeW * 0.10, y: c.y + eyeH * 0.14,
+                                            width: eyeW * 0.34, height: eyeH * 0.30)).fill()
+            }
         }
 
         // 粉色小鼻子
