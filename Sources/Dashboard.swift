@@ -45,6 +45,8 @@ final class DashboardModel: ObservableObject {
     @Published var claudeSevenFrac: Double = 0
     @Published var claudeFiveValid = false
     @Published var claudeSevenValid = false
+    @Published var claudeRunning = false
+    @Published var claudeStatusText = ""
 }
 
 // MARK: - 进程排行条目
@@ -170,8 +172,8 @@ struct DashboardView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-            } else if !model.claudeActive {
-                Text("等待 Claude Code 会话…")
+            } else if model.claudeModel == "--" && model.claudeContext == "--" {
+                Text(model.claudeRunning ? "Claude Code 运行中 · 等待本轮回答…" : "等待 Claude Code 会话…")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -188,6 +190,13 @@ struct DashboardView: View {
                     Text("速率限额仅 Claude.ai 订阅账号提供")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                // 状态小字（运行中 / 等待回答 / 上次更新）
+                if !model.claudeStatusText.isEmpty {
+                    Text(model.claudeStatusText)
+                        .font(.caption2)
+                        .foregroundStyle(model.claudeRunning ? Color.accentColor : .secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }

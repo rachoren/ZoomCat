@@ -29,6 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastNetworkSample = Date()
     private var cpuProcCache = ProcessMonitor.CPUCache()
     private var lastProcSample = Date()
+    private var claudeProcessActive = false
 
     private var showTempInBar: Bool {
         didSet {
@@ -246,6 +247,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.cpuProcCache = newCache
+                // 检测 Claude Code 进程（statusLine 只在交互式会话触发，进程检测兜底）
+                self.claudeProcessActive = entries.contains {
+                    $0.name.lowercased().contains("claude")
+                }
                 self.model.topCPU = Self.buildProcessEntries(cpuTop, metric: .cpu)
                 self.model.topMemory = Self.buildProcessEntries(memTop, metric: .memory)
             }
@@ -299,6 +304,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         model.claudeFiveValid = s.fiveValid
         model.claudeSevenValid = s.sevenValid
         model.claudeActive = s.active
+        model.claudeRunning = claudeProcessActive
+        model.claudeStatusText = Self.claudeStatusText(running: claudeProcessActive, fresh: s.active)
+    }
+
+    private static func claudeStatusText(running: Bool, fresh: Bool) -> String {
+        if running {
+            return fresh ? "运行中" : "运行中 · 等待本轮回答"
+        }
+        if fresh {
+            return "会话刚结束"
+        }
+        return "未检测到会话（上次更新较久前）"
     }
 
     func setupClaudeStatus() {
