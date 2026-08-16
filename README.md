@@ -1,6 +1,6 @@
 # ZoomCat
 
-![Version](https://img.shields.io/badge/version-v0.3-blue)
+![Version](https://img.shields.io/badge/version-v0.3.1-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Language](https://img.shields.io/badge/language-Swift%2FAppKit-orange)
@@ -9,13 +9,13 @@
 CPU 低时端坐休息、摇尾巴，CPU 高时撒腿狂奔。纯 Swift + AppKit 实现，
 无需任何第三方依赖，猫咪为程序化矢量绘制（任意分辨率清晰）。
 
-> **当前版本：v0.3** —— 全新 Dashboard 仪表盘（卡片 + CPU 曲线 + 品种画廊）。
+> **当前版本：v0.3.1** —— Dashboard 新增网络速度与电池监控。
 
 ## 特性
 
 - 🐱 菜单栏小猫：8 帧奔跑动画 + 2 帧端坐摇尾动画
 - 🖥️ **Dashboard 仪表盘**：点击猫咪弹出（参考 RunCatNeo 设计语言）
-  - 系统信息卡片（CPU 使用率 / 温度 / 热状态 / 磁盘 / 内存）
+  - 系统信息卡片（CPU 使用率 / 温度 / 热状态 / 磁盘 / 内存 / **电池** / **网络**）
   - **CPU 使用率 60 秒历史曲线**（渐变面积图）
   - 品种画廊（10 品种缩略图点选即换）
   - 毛玻璃质感、明暗模式自适应
@@ -73,7 +73,11 @@ macOS 没有公开的温度 API。本应用按 SMC → IOHID → 温度监控助
 
 ## 版本记录
 
-### v0.3（当前版本）
+### v0.3.1（当前版本）
+- 🌐 **网络速度**：下载/上传实时速率（64 位计数器，1 秒采样）
+- 🔋 **电池**：电量百分比 + 充电/放电/已充满状态
+
+### v0.3
 - 🖥️ **全新 Dashboard 仪表盘**（点击猫咪弹出，参考 RunCatNeo 设计语言）：
   - 系统信息卡片：CPU 使用率 / 温度 / 热状态 / 磁盘 / **内存**（新增）
   - **CPU 使用率 60 秒历史曲线**（渐变面积图）
@@ -98,7 +102,7 @@ Sources/
   main.swift        # 入口 + 图标生成模式(--gen-icon)
   AppDelegate.swift # 状态栏、动画驱动、信息采样、仪表盘接线
   Dashboard.swift   # Dashboard 仪表盘（SwiftUI：卡片/曲线/品种画廊/弹出控制器）
-  SystemStats.swift # 内存用量
+  SystemStats.swift # 系统统计（内存/网络/电池）
   CatPainter.swift  # 猫咪矢量绘制与配色
   CPUUsage.swift    # CPU 采样
   TemperatureReader.swift # 温度三级读取（SMC / IOHID / 监控助手日志）

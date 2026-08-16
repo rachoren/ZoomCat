@@ -26,6 +26,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastMiscCheck = Date()
     private var cpuHistory: [Double] = []
     private var lastHistoryPush = Date()
+    private var lastNetworkCounters: (rx: UInt64, tx: UInt64)?
+    private var lastNetworkSample = Date()
 
     private var showTempInBar: Bool {
         didSet {
@@ -123,12 +125,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             applyStatusBarText()
         }
 
-        // CPU 历史曲线：1Hz 采样（60 秒窗口）
+        // CPU 历史曲线 + 网络速率：1Hz
         if now.timeIntervalSince(lastHistoryPush) >= 1.0 {
             lastHistoryPush = now
             cpuHistory.append(smoothedCPU * 100)
             if cpuHistory.count > 60 { cpuHistory.removeFirst() }
             model.cpuHistory = cpuHistory
+
+            if let c = NetworkStats.counters() {
+                let dt = now.timeIntervalSince(lastNetworkSample)
+                if let prev = lastNetworkCounters, dt > 0 {
+                    let down = Double(c.rx > prev.rx ? c.rx - prev.rx : 0) / dt
+                    let up = Double(c.tx > prev.tx ? c.tx - prev.tx : 0) / dt
+                    model.networkDown = NetworkStats.formatSpeed(down)
+                    model.networkUp = NetworkStats.formatSpeed(up)
+                }
+                lastNetworkCounters = c
+                lastNetworkSample = now
+            }
         }
 
         // 温度：2s
@@ -139,12 +153,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             applyStatusBarText()
         }
 
-        // 热状态 / 磁盘 / 内存 / 助手状态：5s
+        // 热状态 / 磁盘 / 内存 / 电池 / 助手状态：5s
         if now.timeIntervalSince(lastMiscCheck) >= 5.0 {
             lastMiscCheck = now
             model.thermalText = thermalText
             model.diskText = DiskUsage.formatted()
             model.memoryText = MemoryStats.formatted()
+            model.batteryText = BatteryStats.formatted()
             model.daemonInstalled = TemperatureDaemon.isInstalled
             syncLoginState()
         }
@@ -268,7 +283,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             attributes: [.font: NSFont.systemFont(ofSize: 11)])
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "ZoomCat",
-            .applicationVersion: "v0.3",
+            .applicationVersion: "v0.3.1",
             .credits: credits,
         ])
     }

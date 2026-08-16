@@ -12,6 +12,9 @@ final class DashboardModel: ObservableObject {
     @Published var thermalText = "--"
     @Published var diskText = "--"
     @Published var memoryText = "--"
+    @Published var networkDown = "--"
+    @Published var networkUp = "--"
+    @Published var batteryText = "--"
     @Published var stateText = "休息中 😴"
 
     @Published var breedImage: NSImage?
@@ -82,6 +85,9 @@ struct DashboardView: View {
             InfoCard(title: "系统热状态", value: model.thermalText)
             InfoCard(title: "磁盘用量", value: model.diskText)
             InfoCard(title: "内存用量", value: model.memoryText)
+            InfoCard(title: "电池", value: model.batteryText)
+            InfoCard(title: "下载 ↓", value: model.networkDown)
+            InfoCard(title: "上传 ↑", value: model.networkUp)
         }
     }
 
