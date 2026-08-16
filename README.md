@@ -1,6 +1,6 @@
 # ZoomCat
 
-![Version](https://img.shields.io/badge/version-v0.3.1-blue)
+![Version](https://img.shields.io/badge/version-v0.3.2-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Language](https://img.shields.io/badge/language-Swift%2FAppKit-orange)
@@ -9,7 +9,7 @@
 CPU 低时端坐休息、摇尾巴，CPU 高时撒腿狂奔。纯 Swift + AppKit 实现，
 无需任何第三方依赖，猫咪为程序化矢量绘制（任意分辨率清晰）。
 
-> **当前版本：v0.3.1** —— Dashboard 新增网络速度与电池监控。
+> **当前版本：v0.3.2** —— Dashboard 新增占用排行 Top 3。
 
 ## 特性
 
@@ -74,7 +74,12 @@ macOS 没有公开的温度 API。本应用按 SMC → IOHID → 温度监控助
 
 ## 版本记录
 
-### v0.3.1（当前版本）
+### v0.3.2（当前版本）
+- 🏆 **占用排行 Top 3**：CPU/内存一键切换，应用图标 + 进度条
+- ⚙️ 进程采集优化：proc_pidinfo 全量遍历 5ms，后台刷新
+- 🚀 性能：动画帧率上限 10fps，状态栏重绘开销减半
+
+### v0.3.1
 - 🌐 **网络速度**：下载/上传实时速率（64 位计数器，1 秒采样）
 - 🔋 **电池**：电量百分比 + 充电/放电/已充满状态
 
