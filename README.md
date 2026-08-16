@@ -1,6 +1,6 @@
 # ZoomCat
 
-![Version](https://img.shields.io/badge/version-v0.2-blue)
+![Version](https://img.shields.io/badge/version-v0.3-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Language](https://img.shields.io/badge/language-Swift%2FAppKit-orange)
@@ -9,11 +9,16 @@
 CPU 低时端坐休息、摇尾巴，CPU 高时撒腿狂奔。纯 Swift + AppKit 实现，
 无需任何第三方依赖，猫咪为程序化矢量绘制（任意分辨率清晰）。
 
-> **当前版本：v0.2** —— UI 全面优化（菜单栏文字显示、奔跑弹跳、关于面板等）。
+> **当前版本：v0.3** —— 全新 Dashboard 仪表盘（卡片 + CPU 曲线 + 品种画廊）。
 
 ## 特性
 
 - 🐱 菜单栏小猫：8 帧奔跑动画 + 2 帧端坐摇尾动画
+- 🖥️ **Dashboard 仪表盘**：点击猫咪弹出（参考 RunCatNeo 设计语言）
+  - 系统信息卡片（CPU 使用率 / 温度 / 热状态 / 磁盘 / 内存）
+  - **CPU 使用率 60 秒历史曲线**（渐变面积图）
+  - 品种画廊（10 品种缩略图点选即换）
+  - 毛玻璃质感、明暗模式自适应
 - 📊 实时监控 CPU（mach `host_statistics`，指数平滑）
 - 🌡️ **CPU 温度**：三级读取链，自动回退
   1. SMC（`TC0P`/`TC0D`/`TCxC` 等键，常规 Intel Mac 无需 root）
@@ -46,9 +51,8 @@ open ZoomCat.app     # 启动（或双击）
 
 ## 使用
 
-- 点击菜单栏小猫 → 弹出菜单：CPU 使用率 / CPU 温度 / 系统热状态 /
-  磁盘用量 / 当前状态 / 菜单栏显示（使用率/温度）开关 / 猫咪品种 ▸ /
-  温度监控助手 ▸ / 开机自动启动 / 关于 ZoomCat / 退出
+- 点击菜单栏小猫 → 弹出 **Dashboard 仪表盘**：系统信息卡片 / CPU 历史曲线 /
+  品种画廊 / 显示开关 / 温度监控助手 / 开机自启 / 关于 / 退出
 - 无 Dock 图标（LSUIElement 菜单栏应用）
 
 ### 关于 CPU 温度
@@ -69,14 +73,16 @@ macOS 没有公开的温度 API。本应用按 SMC → IOHID → 温度监控助
 
 ## 版本记录
 
-### v0.2（当前版本）
-- 🎨 **UI 优化**（参考原版 RunCat 设计）：
-  - 菜单栏文字改为**猫咪左侧**显示（等宽字体，数字对齐美观）
-  - 新增「菜单栏显示 CPU 使用率」开关，与温度可同时显示（如 `12.3% 62°`）
-  - 奔跑动画加入节奏弹跳，更有动感
-  - 睡眠时自动暂停动画、唤醒自动恢复
-  - 新增「关于 ZoomCat」面板（版本信息）
-  - 菜单结构重新分组，更清爽
+### v0.3（当前版本）
+- 🖥️ **全新 Dashboard 仪表盘**（点击猫咪弹出，参考 RunCatNeo 设计语言）：
+  - 系统信息卡片：CPU 使用率 / 温度 / 热状态 / 磁盘 / **内存**（新增）
+  - **CPU 使用率 60 秒历史曲线**（渐变面积图）
+  - 品种画廊：10 品种缩略图点选即换
+  - 毛玻璃卡片、明暗模式自适应
+  - 原 NSMenu 菜单升级为完整仪表盘交互
+
+### v0.2
+- 🎨 UI 优化（参考原版 RunCat 设计）：菜单栏文字居左、CPU 使用率显示开关、奔跑弹跳、睡眠/唤醒处理、关于面板
 
 ### v0.1（2026-08）
 - 🐱 菜单栏猫咪动画：随 CPU 使用率奔跑，速度分级（休息/散步/慢跑/飞奔）
@@ -90,7 +96,9 @@ macOS 没有公开的温度 API。本应用按 SMC → IOHID → 温度监控助
 ```
 Sources/
   main.swift        # 入口 + 图标生成模式(--gen-icon)
-  AppDelegate.swift # 状态栏、菜单、动画驱动、信息采样
+  AppDelegate.swift # 状态栏、动画驱动、信息采样、仪表盘接线
+  Dashboard.swift   # Dashboard 仪表盘（SwiftUI：卡片/曲线/品种画廊/弹出控制器）
+  SystemStats.swift # 内存用量
   CatPainter.swift  # 猫咪矢量绘制与配色
   CPUUsage.swift    # CPU 采样
   TemperatureReader.swift # 温度三级读取（SMC / IOHID / 监控助手日志）

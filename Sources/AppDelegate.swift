@@ -7,6 +7,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var cpu = CPUUsage()
     private let temperature = TemperatureProvider()
 
+    private let model = DashboardModel()
+    private var dashboard: DashboardController!
+
     private var lastCpuSample = Date()
     private var smoothedCPU: Double = 0
 
@@ -17,29 +20,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var runningFrames: [NSImage] = []
     private var sittingFrames: [NSImage] = []
     private var displayedFrame: NSImage?
-    private var loginMenuItem: NSMenuItem?
-    private var daemonStatusItem: NSMenuItem?
-    private var daemonActionItem: NSMenuItem?
 
     private var cpuTemp: Double?
     private var lastTempCheck = Date()
     private var lastMiscCheck = Date()
+    private var cpuHistory: [Double] = []
+    private var lastHistoryPush = Date()
 
     private var showTempInBar: Bool {
-        didSet { UserDefaults.standard.set(showTempInBar, forKey: "showTempInBar") }
+        didSet {
+            UserDefaults.standard.set(showTempInBar, forKey: "showTempInBar")
+            model.showTempInBar = showTempInBar
+        }
     }
     private var showUsageInBar: Bool {
-        didSet { UserDefaults.standard.set(showUsageInBar, forKey: "showUsageInBar") }
+        didSet {
+            UserDefaults.standard.set(showUsageInBar, forKey: "showUsageInBar")
+            model.showUsageInBar = showUsageInBar
+        }
     }
     private var selectedBreed: CatBreed {
         didSet { UserDefaults.standard.set(selectedBreed.rawValue, forKey: "catBreed") }
     }
-
-    private let cpuMenuItem = NSMenuItem(title: "CPU 使用率: --", action: nil, keyEquivalent: "")
-    private let tempMenuItem = NSMenuItem(title: "CPU 温度: --", action: nil, keyEquivalent: "")
-    private let thermalMenuItem = NSMenuItem(title: "系统热状态: --", action: nil, keyEquivalent: "")
-    private let diskMenuItem = NSMenuItem(title: "磁盘: --", action: nil, keyEquivalent: "")
-    private let stateMenuItem = NSMenuItem(title: "状态: --", action: nil, keyEquivalent: "")
 
     override init() {
         let saved = UserDefaults.standard.string(forKey: "catBreed")
@@ -57,13 +59,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.imagePosition = .imageOnly
         statusItem.button?.toolTip = "ZoomCat"
+        statusItem.button?.action = #selector(toggleDashboard(_:))
+        statusItem.button?.target = self
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         // 等宽字体：菜单栏数字对齐美观（参考原版 RunCat）
         if #available(macOS 10.15, *) {
             statusItem.button?.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         }
 
+        dashboard = DashboardController(app: self, model: model)
         rebuildFrames()
-        buildMenu()
+        buildBreedPreviews()
+        syncModelPrefs()
         applyStatusBarText()
 
         let t = Timer(timeInterval: 1.0 / 20.0, target: self,
@@ -80,6 +87,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSWorkspace.didWakeNotification, object: nil)
 
         maybePromptDaemonInstall()
+    }
+
+    @objc private func toggleDashboard(_ sender: Any?) {
+        guard let button = statusItem.button else { return }
+        dashboard.show(from: button)
     }
 
     @objc private func handleSleep() {
@@ -106,28 +118,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if now.timeIntervalSince(lastCpuSample) >= 0.5 {
             smoothedCPU = cpu.sample()
             lastCpuSample = now
-            cpuMenuItem.title = String(format: "CPU 使用率: %.1f%%", smoothedCPU * 100)
-            stateMenuItem.title = "状态: " + stateText
+            model.cpuUsage = smoothedCPU
+            model.stateText = stateText
             applyStatusBarText()
+        }
+
+        // CPU 历史曲线：1Hz 采样（60 秒窗口）
+        if now.timeIntervalSince(lastHistoryPush) >= 1.0 {
+            lastHistoryPush = now
+            cpuHistory.append(smoothedCPU * 100)
+            if cpuHistory.count > 60 { cpuHistory.removeFirst() }
+            model.cpuHistory = cpuHistory
         }
 
         // 温度：2s
         if now.timeIntervalSince(lastTempCheck) >= 2.0 {
             lastTempCheck = now
             cpuTemp = temperature.currentTemperature()
-            if let t = cpuTemp {
-                tempMenuItem.title = String(format: "CPU 温度: %.1f°C", t)
-            } else {
-                tempMenuItem.title = "CPU 温度: --"
-            }
+            model.cpuTempText = cpuTemp.map { String(format: "%.1f°C", $0) } ?? "--"
             applyStatusBarText()
         }
 
-        // 热状态 + 磁盘：5s
+        // 热状态 / 磁盘 / 内存 / 助手状态：5s
         if now.timeIntervalSince(lastMiscCheck) >= 5.0 {
             lastMiscCheck = now
-            thermalMenuItem.title = "系统热状态: " + thermalText
-            diskMenuItem.title = DiskUsage.formatted()
+            model.thermalText = thermalText
+            model.diskText = DiskUsage.formatted()
+            model.memoryText = MemoryStats.formatted()
+            model.daemonInstalled = TemperatureDaemon.isInstalled
+            syncLoginState()
         }
 
         // 动画：帧率随 CPU 提升
@@ -176,92 +195,99 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - 菜单
+    // MARK: - Dashboard 动作
 
-    private func buildMenu() {
-        let menu = NSMenu()
+    func setShowUsageInBar(_ on: Bool) {
+        showUsageInBar = on
+        model.showUsageInBar = on
+        applyStatusBarText()
+    }
 
-        menu.addItem(cpuMenuItem)
-        menu.addItem(tempMenuItem)
-        menu.addItem(thermalMenuItem)
-        menu.addItem(diskMenuItem)
-        menu.addItem(stateMenuItem)
-        menu.addItem(.separator())
+    func setShowTempInBar(_ on: Bool) {
+        showTempInBar = on
+        model.showTempInBar = on
+        applyStatusBarText()
+    }
 
-        let usageItem = NSMenuItem(title: "菜单栏显示 CPU 使用率", action: #selector(toggleUsageInBar(_:)),
-                                   keyEquivalent: "")
-        usageItem.target = self
-        usageItem.state = showUsageInBar ? .on : .off
-        menu.addItem(usageItem)
+    func selectBreed(_ index: Int) {
+        guard CatBreed.allCases.indices.contains(index) else { return }
+        selectedBreed = CatBreed.allCases[index]
+        model.selectedBreed = index
+        model.breedName = selectedBreed.displayName
+        rebuildFrames()
+        model.breedImage = sittingFrames.first
+    }
 
-        let barItem = NSMenuItem(title: "菜单栏显示 CPU 温度", action: #selector(toggleTempInBar(_:)),
-                                 keyEquivalent: "")
-        barItem.target = self
-        barItem.state = showTempInBar ? .on : .off
-        menu.addItem(barItem)
-
-        menu.addItem(.separator())
-
-        let daemonItem = NSMenuItem(title: "温度监控助手", action: nil, keyEquivalent: "")
-        daemonItem.submenu = buildDaemonMenu()
-        menu.addItem(daemonItem)
-        updateDaemonItem()
-
-        let breedMenu = NSMenu()
-        for (i, b) in CatBreed.allCases.enumerated() {
-            let item = NSMenuItem(title: b.displayName, action: #selector(chooseBreed(_:)),
-                                  keyEquivalent: "")
-            item.target = self
-            item.tag = i
-            item.state = (b == selectedBreed) ? .on : .off
-            breedMenu.addItem(item)
+    func toggleDaemonAction() {
+        if TemperatureDaemon.isInstalled {
+            let confirm = NSAlert()
+            confirm.messageText = "停用温度监控助手？"
+            confirm.informativeText = "停用后 CPU 温度将无法自动读取，显示为 --。"
+            confirm.addButton(withTitle: "停用")
+            confirm.addButton(withTitle: "取消")
+            guard confirm.runModal() == .alertFirstButtonReturn else { return }
+            model.daemonBusy = true
+            TemperatureDaemon.uninstall { [weak self] ok in
+                guard let self else { return }
+                self.model.daemonBusy = false
+                self.model.daemonInstalled = TemperatureDaemon.isInstalled
+                if !ok {
+                    let alert = NSAlert()
+                    alert.messageText = "停用失败"
+                    alert.informativeText = "可能取消了授权。"
+                    alert.runModal()
+                }
+            }
+        } else {
+            installDaemon()
         }
-        let breedItem = NSMenuItem(title: "猫咪品种", action: nil, keyEquivalent: "")
-        breedItem.submenu = breedMenu
-        menu.addItem(breedItem)
-
-        let loginItem = NSMenuItem(title: "开机自动启动", action: #selector(toggleLaunchAtLogin(_:)),
-                                   keyEquivalent: "")
-        loginItem.target = self
-        menu.addItem(loginItem)
-        loginMenuItem = loginItem
-        refreshLoginItem()
-
-        menu.addItem(.separator())
-        let about = NSMenuItem(title: "关于 ZoomCat", action: #selector(showAbout(_:)),
-                               keyEquivalent: "")
-        about.target = self
-        menu.addItem(about)
-        let quit = NSMenuItem(title: "退出 ZoomCat", action: #selector(NSApplication.terminate(_:)),
-                              keyEquivalent: "q")
-        quit.target = NSApp
-        menu.addItem(quit)
-
-        statusItem.menu = menu
     }
 
-    @objc private func toggleUsageInBar(_ sender: NSMenuItem) {
-        showUsageInBar.toggle()
-        sender.state = showUsageInBar ? .on : .off
-        applyStatusBarText()
+    func setLoginAtLaunch(_ on: Bool) {
+        if #available(macOS 13.0, *) {
+            do {
+                if on {
+                    try SMAppService.mainApp.register()
+                } else {
+                    try SMAppService.mainApp.unregister()
+                }
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "开机自动启动设置失败"
+                alert.informativeText = "请把 ZoomCat.app 移动到“应用程序”文件夹后重试。"
+                alert.runModal()
+            }
+        }
+        syncLoginState()
     }
 
-    @objc private func toggleTempInBar(_ sender: NSMenuItem) {
-        showTempInBar.toggle()
-        sender.state = showTempInBar ? .on : .off
-        applyStatusBarText()
-    }
-
-    @objc private func showAbout(_ sender: Any?) {
+    func showAboutPanel() {
         NSApp.activate(ignoringOtherApps: true)
         let credits = NSAttributedString(
             string: "随 CPU 奔跑的菜单栏猫咪\n纯 Swift + AppKit，零第三方依赖",
             attributes: [.font: NSFont.systemFont(ofSize: 11)])
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "ZoomCat",
-            .applicationVersion: "v0.2",
+            .applicationVersion: "v0.3",
             .credits: credits,
         ])
+    }
+
+    func quitApp() {
+        NSApp.terminate(nil)
+    }
+
+    private func syncLoginState() {
+        if #available(macOS 13.0, *) {
+            model.loginAtLaunch = (SMAppService.mainApp.status == .enabled)
+        }
+    }
+
+    private func syncModelPrefs() {
+        model.showUsageInBar = showUsageInBar
+        model.showTempInBar = showTempInBar
+        model.daemonInstalled = TemperatureDaemon.isInstalled
+        syncLoginState()
     }
 
     // MARK: - 温度监控助手（LaunchDaemon）
@@ -291,10 +317,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func installDaemon() {
-        updateDaemonItem("正在启用…")
+        model.daemonBusy = true
         TemperatureDaemon.install { [weak self] ok in
             guard let self else { return }
-            self.updateDaemonItem()
+            self.model.daemonBusy = false
+            self.model.daemonInstalled = TemperatureDaemon.isInstalled
             if ok {
                 self.refreshTemperatureNow()
                 let alert = NSAlert()
@@ -304,66 +331,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 let alert = NSAlert()
                 alert.messageText = "启用失败"
-                alert.informativeText = "可能取消了授权。可稍后在菜单中重试。"
+                alert.informativeText = "可能取消了授权。可稍后重试。"
                 alert.runModal()
             }
-        }
-    }
-
-    @objc private func toggleDaemon(_ sender: NSMenuItem) {
-        if TemperatureDaemon.isInstalled {
-            let confirm = NSAlert()
-            confirm.messageText = "停用温度监控助手？"
-            confirm.informativeText = "停用后 CPU 温度将无法自动读取，显示为 --。"
-            confirm.addButton(withTitle: "停用")
-            confirm.addButton(withTitle: "取消")
-            guard confirm.runModal() == .alertFirstButtonReturn else { return }
-            TemperatureDaemon.uninstall { [weak self] ok in
-                guard let self else { return }
-                if ok {
-                    self.cpuTemp = nil
-                    self.tempMenuItem.title = "CPU 温度: --"
-                    self.applyStatusBarText()
-                    self.updateDaemonItem()
-                } else {
-                    let alert = NSAlert()
-                    alert.messageText = "停用失败"
-                    alert.informativeText = "可能取消了授权。"
-                    alert.runModal()
-                    self.updateDaemonItem()
-                }
-            }
-        } else {
-            installDaemon()
-        }
-    }
-
-    private func buildDaemonMenu() -> NSMenu {
-        let menu = NSMenu()
-        let info = NSMenuItem(title: "状态: --", action: nil, keyEquivalent: "")
-        menu.addItem(info)
-        daemonStatusItem = info
-        menu.addItem(.separator())
-        let action = NSMenuItem(title: "启用…", action: #selector(toggleDaemon(_:)), keyEquivalent: "")
-        action.target = self
-        menu.addItem(action)
-        daemonActionItem = action
-        return menu
-    }
-
-    private func updateDaemonItem(_ forced: String? = nil) {
-        guard let status = daemonStatusItem, let action = daemonActionItem else { return }
-        if let forced {
-            status.title = forced
-            action.title = "停用…"
-            return
-        }
-        if TemperatureDaemon.isInstalled {
-            status.title = "已启用 · 开机自动运行"
-            action.title = "停用…"
-        } else {
-            status.title = "未启用"
-            action.title = "启用（需要一次授权）"
         }
     }
 
@@ -372,48 +342,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self else { return }
             self.cpuTemp = self.temperature.currentTemperature()
-            if let t = self.cpuTemp {
-                self.tempMenuItem.title = String(format: "CPU 温度: %.1f°C", t)
-            } else {
-                self.tempMenuItem.title = "CPU 温度: --"
-            }
+            self.model.cpuTempText = self.cpuTemp.map { String(format: "%.1f°C", $0) } ?? "--"
             self.applyStatusBarText()
         }
     }
 
-    @objc private func chooseBreed(_ sender: NSMenuItem) {
-        selectedBreed = CatBreed.allCases[sender.tag]
-        rebuildFrames()
-        if let submenu = statusItem.menu?.item(withTitle: "猫咪品种")?.submenu {
-            for item in submenu.items {
-                item.state = (item.tag == sender.tag) ? .on : .off
-            }
-        }
-    }
-
-    @objc private func toggleLaunchAtLogin(_ sender: NSMenuItem) {
-        if #available(macOS 13.0, *) {
-            do {
-                if SMAppService.mainApp.status == .enabled {
-                    try SMAppService.mainApp.unregister()
-                } else {
-                    try SMAppService.mainApp.register()
-                }
-            } catch {
-                let alert = NSAlert()
-                alert.messageText = "开机自动启动设置失败"
-                alert.informativeText = "请把 ZoomCat.app 移动到“应用程序”文件夹后重试。"
-                alert.runModal()
-            }
-        }
-        refreshLoginItem()
-    }
-
-    private func refreshLoginItem() {
-        if #available(macOS 13.0, *) {
-            loginMenuItem?.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
-        }
-    }
+    // MARK: - 菜单栏文字与帧
 
     /// 菜单栏文字：CPU 使用率 / 温度 组合显示在猫的左侧（参考原版 RunCat 布局）。
     private func applyStatusBarText() {
@@ -445,5 +379,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let painter = CatPainter(breed: selectedBreed)
         runningFrames = painter.runningFrames()
         sittingFrames = painter.sittingFrames()
+    }
+
+    private func buildBreedPreviews() {
+        var previews: [(String, NSImage)] = []
+        for (i, breed) in CatBreed.allCases.enumerated() {
+            let painter = CatPainter(breed: breed)
+            let frame = painter.sittingFrames().first ?? NSImage()
+            previews.append((breed.displayName, frame))
+            if i == CatBreed.allCases.firstIndex(of: selectedBreed) {
+                model.breedName = breed.displayName
+            }
+        }
+        model.breedPreviews = previews
+        model.selectedBreed = CatBreed.allCases.firstIndex(of: selectedBreed) ?? 0
+        model.breedImage = sittingFrames.first
     }
 }
