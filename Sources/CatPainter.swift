@@ -294,12 +294,16 @@ struct CatPainter {
         let phi = phase * 2 * .pi
         let tailColor = cfg.mask ?? cfg.body
 
-        // 奔跑弹跳：两拍幅度略不同，循环更长更自然
+        // 奔跑弹跳 + 前倾（速度感）：两拍幅度略不同
         let bounce = (0.5 - 0.12 * stride) * abs(sin(phi * 2))
         let tailAmp = g.tailAmp * (1 + 0.18 * stride)
         let cg = NSGraphicsContext.current!.cgContext
         cg.saveGState()
         cg.translateBy(x: 0, y: bounce)
+        // 身体微微前倾，冲刺更有动感
+        cg.translateBy(x: g.body.midX, y: g.body.midY)
+        cg.rotate(by: -0.05)
+        cg.translateBy(x: -g.body.midX, y: -g.body.midY)
 
         // 尾巴
         let tailStart = NSPoint(x: g.body.minX + 0.3, y: g.body.midY + 0.7)
@@ -341,7 +345,7 @@ struct CatPainter {
         drawEars(g)
 
         // 脸（眼睛/鼻子/嘴/腮红/胡须）
-        drawFace(g)
+        drawFace(g, determined: true)
 
         cg.restoreGState()
     }
@@ -491,7 +495,7 @@ struct CatPainter {
         }
     }
 
-    private func drawFace(_ g: Geo, blink: Bool = false) {
+    private func drawFace(_ g: Geo, blink: Bool = false, determined: Bool = false) {
         let r = g.headR
         let h = g.head
 
@@ -522,6 +526,18 @@ struct CatPainter {
                 NSBezierPath(ovalIn: NSRect(x: c.x - eyeW * 0.10, y: c.y + eyeH * 0.14,
                                             width: eyeW * 0.34, height: eyeH * 0.30)).fill()
             }
+            // 坚定眉毛（奔跑时，眉尾上扬，参考卡通角色冲刺表情）
+            if determined {
+                cfg.outline.setStroke()
+                for side: CGFloat in [-1, 1] {
+                    let brow = NSBezierPath()
+                    brow.move(to: NSPoint(x: h.x + side * r * 0.58, y: h.y + r * 0.52))
+                    brow.line(to: NSPoint(x: h.x + side * r * 0.18, y: h.y + r * 0.70))
+                    brow.lineWidth = 0.6
+                    brow.lineCapStyle = .round
+                    brow.stroke()
+                }
+            }
         }
 
         // 粉色小鼻子
@@ -533,15 +549,21 @@ struct CatPainter {
         nose.close()
         cfg.earInner.setFill(); nose.fill()
 
-        // 微笑小嘴
-        cfg.outline.setStroke()
-        let mouth = NSBezierPath()
-        mouth.move(to: NSPoint(x: noseC.x - r * 0.10, y: noseC.y - r * 0.08))
-        mouth.curve(to: NSPoint(x: noseC.x + r * 0.10, y: noseC.y - r * 0.08),
-                    controlPoint1: NSPoint(x: noseC.x, y: noseC.y - r * 0.17),
-                    controlPoint2: NSPoint(x: noseC.x, y: noseC.y - r * 0.17))
-        mouth.lineWidth = 0.35
-        mouth.stroke()
+        // 嘴：奔跑时微张（喘气），平时微笑
+        if determined {
+            cfg.outline.setFill()
+            NSBezierPath(ovalIn: NSRect(x: noseC.x - r * 0.10, y: noseC.y - r * 0.26,
+                                        width: r * 0.20, height: r * 0.16)).fill()
+        } else {
+            cfg.outline.setStroke()
+            let mouth = NSBezierPath()
+            mouth.move(to: NSPoint(x: noseC.x - r * 0.10, y: noseC.y - r * 0.08))
+            mouth.curve(to: NSPoint(x: noseC.x + r * 0.10, y: noseC.y - r * 0.08),
+                        controlPoint1: NSPoint(x: noseC.x, y: noseC.y - r * 0.17),
+                        controlPoint2: NSPoint(x: noseC.x, y: noseC.y - r * 0.17))
+            mouth.lineWidth = 0.35
+            mouth.stroke()
+        }
 
         // 腮红
         let blush = NSColor(calibratedRed: 0.98, green: 0.55, blue: 0.60, alpha: 0.30)
