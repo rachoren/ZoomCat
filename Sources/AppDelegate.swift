@@ -17,8 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var accumulator = 0.0
     private var lastFrame = Date()
 
-    private var runningFrames: [NSImage] = []
-    private var sittingFrames: [NSImage] = []
+    private var frames = RunnerFrames(running: [], sitting: [], sleeping: nil)
     private var displayedFrame: NSImage?
 
     private var cpuTemp: Double?
@@ -46,10 +45,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var selectedBreed: CatBreed {
         didSet { UserDefaults.standard.set(selectedBreed.rawValue, forKey: "catBreed") }
     }
+    private var selectedKind: RunnerKind {
+        didSet { UserDefaults.standard.set(selectedKind.rawValue, forKey: "runnerKind") }
+    }
 
     override init() {
-        let saved = UserDefaults.standard.string(forKey: "catBreed")
-        selectedBreed = saved.flatMap(CatBreed.init(rawValue:)) ?? .ragdoll
+        let savedBreed = UserDefaults.standard.string(forKey: "catBreed")
+        selectedBreed = savedBreed.flatMap(CatBreed.init(rawValue:)) ?? .ragdoll
+        let savedKind = UserDefaults.standard.string(forKey: "runnerKind")
+        selectedKind = savedKind.flatMap(RunnerKind.init(rawValue:)) ?? .cat
         showTempInBar = UserDefaults.standard.bool(forKey: "showTempInBar")
         showUsageInBar = UserDefaults.standard.bool(forKey: "showUsageInBar")
         super.init()
@@ -74,6 +78,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         dashboard = DashboardController(app: self, model: model)
         rebuildFrames()
         buildBreedPreviews()
+        buildRunnerPreviews()
         syncModelPrefs()
         applyStatusBarText()
 
@@ -190,11 +195,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // 仅当画面真正变化时才设置图像，避免菜单栏无谓重绘
+        // 状态机：睡觉(<2%，仅猫咪) → 端坐(<6%) → 奔跑
         let targetFrame: NSImage
-        if smoothedCPU < 0.06 {
-            targetFrame = sittingFrames[frameIndex % sittingFrames.count]
+        if smoothedCPU < 0.02, let sleeping = frames.sleeping, !sleeping.isEmpty {
+            targetFrame = sleeping[frameIndex % sleeping.count]
+        } else if smoothedCPU < 0.06, !frames.sitting.isEmpty {
+            targetFrame = frames.sitting[frameIndex % frames.sitting.count]
         } else {
-            targetFrame = runningFrames[frameIndex]
+            targetFrame = frames.running[frameIndex % frames.running.count]
         }
         if targetFrame !== displayedFrame {
             statusItem.button?.image = targetFrame
@@ -203,7 +211,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private var stateText: String {
-        if smoothedCPU < 0.06 { return "休息中 😴" }
+        if smoothedCPU < 0.02, frames.sleeping != nil { return "睡觉中 😴" }
+        if smoothedCPU < 0.06 { return "休息中 🧘" }
         if smoothedCPU < 0.30 { return "散步中 🚶" }
         if smoothedCPU < 0.60 { return "慢跑中 🏃" }
         return "飞奔中 💨"
@@ -336,9 +345,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard CatBreed.allCases.indices.contains(index) else { return }
         selectedBreed = CatBreed.allCases[index]
         model.selectedBreed = index
-        model.breedName = selectedBreed.displayName
+        updateRunnerHeader()
         rebuildFrames()
-        model.breedImage = sittingFrames.first
+    }
+
+    func selectKind(_ index: Int) {
+        guard RunnerKind.allCases.indices.contains(index) else { return }
+        selectedKind = RunnerKind.allCases[index]
+        model.selectedKind = index
+        model.showBreedSection = (selectedKind == .cat)
+        updateRunnerHeader()
+        rebuildFrames()
+    }
+
+    private func updateRunnerHeader() {
+        if selectedKind == .cat {
+            model.breedName = selectedBreed.displayName
+        } else {
+            model.breedName = selectedKind.displayName
+        }
     }
 
     func toggleDaemonAction() {
@@ -499,23 +524,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func rebuildFrames() {
-        let painter = CatPainter(breed: selectedBreed)
-        runningFrames = painter.runningFrames()
-        sittingFrames = painter.sittingFrames()
+        frames = RunnerFactory.frames(kind: selectedKind, catBreed: selectedBreed)
+        model.breedImage = frames.sitting.first
     }
 
     private func buildBreedPreviews() {
         var previews: [(String, NSImage)] = []
-        for (i, breed) in CatBreed.allCases.enumerated() {
+        for breed in CatBreed.allCases {
             let painter = CatPainter(breed: breed)
-            let frame = painter.sittingFrames().first ?? NSImage()
-            previews.append((breed.displayName, frame))
-            if i == CatBreed.allCases.firstIndex(of: selectedBreed) {
-                model.breedName = breed.displayName
-            }
+            previews.append((breed.displayName, painter.sittingFrames().first ?? NSImage()))
         }
         model.breedPreviews = previews
         model.selectedBreed = CatBreed.allCases.firstIndex(of: selectedBreed) ?? 0
-        model.breedImage = sittingFrames.first
+        updateRunnerHeader()
+    }
+
+    private func buildRunnerPreviews() {
+        var previews: [(String, NSImage)] = []
+        for kind in RunnerKind.allCases {
+            let f = RunnerFactory.frames(kind: kind, catBreed: selectedBreed)
+            previews.append((kind.displayName, f.sitting.first ?? NSImage()))
+        }
+        model.runnerPreviews = previews
+        model.selectedKind = RunnerKind.allCases.firstIndex(of: selectedKind) ?? 0
+        model.showBreedSection = (selectedKind == .cat)
+        updateRunnerHeader()
     }
 }

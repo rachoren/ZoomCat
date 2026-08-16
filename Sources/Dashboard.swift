@@ -21,6 +21,9 @@ final class DashboardModel: ObservableObject {
     @Published var breedName = ""
     @Published var breedPreviews: [(String, NSImage)] = []
     @Published var selectedBreed = 0
+    @Published var runnerPreviews: [(String, NSImage)] = []
+    @Published var selectedKind = 0
+    @Published var showBreedSection = true
 
     @Published var showUsageInBar = false
     @Published var showTempInBar = false
@@ -66,6 +69,7 @@ struct DashboardView: View {
     let onToggleUsage: (Bool) -> Void
     let onToggleTemp: (Bool) -> Void
     let onSelectBreed: (Int) -> Void
+    let onSelectKind: (Int) -> Void
     let onToggleDaemon: () -> Void
     let onToggleLogin: (Bool) -> Void
     let onAbout: () -> Void
@@ -82,7 +86,10 @@ struct DashboardView: View {
                 graphCard
                 claudeSection
                 processSection
-                breedSection
+                runnerSection
+                if model.showBreedSection {
+                    breedSection
+                }
                 settingsSection
                 footer
             }
@@ -224,6 +231,48 @@ struct DashboardView: View {
             } else {
                 ForEach(list) { entry in
                     ProcessRow(entry: entry)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(.thinMaterial))
+    }
+
+    // MARK: 角色选择（Runner Gallery 风格）
+
+    private var runnerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("角色")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                ForEach(Array(model.runnerPreviews.enumerated()), id: \.offset) { index, item in
+                    Button {
+                        onSelectKind(index)
+                    } label: {
+                        VStack(spacing: 3) {
+                            Image(nsImage: item.1)
+                                .resizable()
+                                .frame(width: 30, height: 30)
+                            Text(item.0)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 9)
+                                .fill(index == model.selectedKind ? Color.accentColor.opacity(0.16) : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 9)
+                                .strokeBorder(index == model.selectedKind ? Color.accentColor : Color.clear,
+                                              lineWidth: 1.2)
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -551,6 +600,7 @@ final class DashboardController {
             onToggleUsage: { [weak self] on in self?.app?.setShowUsageInBar(on) },
             onToggleTemp: { [weak self] on in self?.app?.setShowTempInBar(on) },
             onSelectBreed: { [weak self] i in self?.app?.selectBreed(i) },
+            onSelectKind: { [weak self] i in self?.app?.selectKind(i) },
             onToggleDaemon: { [weak self] in self?.app?.toggleDaemonAction() },
             onToggleLogin: { [weak self] on in self?.app?.setLoginAtLaunch(on) },
             onAbout: { [weak self] in self?.app?.showAboutPanel() },

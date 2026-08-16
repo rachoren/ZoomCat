@@ -157,18 +157,25 @@ struct CatPainter {
 
     func runningFrames() -> [NSImage] {
         (0..<8).map { i in
-            makeImage { drawRunning(phase: Double(i) / 8.0) }
+            FrameRenderer.makeImage { drawRunning(phase: Double(i) / 8.0) }
         }
     }
 
     func sittingFrames() -> [NSImage] {
         (0..<2).map { i in
-            makeImage { drawSitting(tailUp: i == 0) }
+            FrameRenderer.makeImage { drawSitting(tailUp: i == 0) }
+        }
+    }
+
+    /// 睡觉姿势：2 帧呼吸起伏（低负载时蜷成一团）。
+    func sleepingFrames() -> [NSImage] {
+        (0..<2).map { i in
+            FrameRenderer.makeImage { drawSleeping(breath: i == 0) }
         }
     }
 
     func appIcon() -> NSImage {
-        makeImage(ptSize: 512, pixelScale: 2) {
+        FrameRenderer.makeImage(ptSize: 512, pixelScale: 2) {
             let bg = NSBezierPath(roundedRect: NSRect(x: 0.8, y: 0.8, width: 20.4, height: 20.4),
                                   xRadius: 4.6, yRadius: 4.6)
             let top = cfg.body.blended(withFraction: 0.35, of: .white) ?? cfg.body
@@ -179,24 +186,79 @@ struct CatPainter {
         }
     }
 
-    // MARK: - 位图生成
+    // MARK: - 睡觉姿态
 
-    private func makeImage(ptSize: CGFloat = 22, pixelScale: CGFloat = 2, _ draw: () -> Void) -> NSImage {
-        let px = Int(ptSize * pixelScale)
-        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px,
-                                   bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
-                                   isPlanar: false, colorSpaceName: .deviceRGB,
-                                   bytesPerRow: 0, bitsPerPixel: 0)!
-        let image = NSImage(size: NSSize(width: ptSize, height: ptSize))
-        image.addRepresentation(rep)
-        guard let ctx = NSGraphicsContext(bitmapImageRep: rep) else { return image }
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = ctx
-        let s = pixelScale * ptSize / 22.0
-        ctx.cgContext.scaleBy(x: s, y: s)
-        draw()
-        NSGraphicsContext.restoreGraphicsState()
-        return image
+    private func drawSleeping(breath: Bool) {
+        let bodyC = cfg.body
+        let outlineC = cfg.outline
+        let cg = NSGraphicsContext.current!.cgContext
+        cg.saveGState()
+        // 呼吸起伏
+        let s: CGFloat = breath ? 1.0 : 1.045
+        cg.translateBy(x: 11, y: 8.5)
+        cg.scaleBy(x: s, y: s)
+        cg.translateBy(x: -11, y: -8.5)
+
+        // 尾巴绕到身前
+        let tail = NSBezierPath()
+        tail.move(to: NSPoint(x: 5.6, y: 8.6))
+        tail.curve(to: NSPoint(x: 8.2, y: 5.4),
+                   controlPoint1: NSPoint(x: 3.8, y: 7.6),
+                   controlPoint2: NSPoint(x: 5.6, y: 4.6))
+        tail.lineWidth = cfg.tailWidth
+        tail.lineCapStyle = .round
+        (cfg.mask ?? bodyC).setStroke()
+        tail.stroke()
+
+        // 身体（蜷成一团）
+        let body = NSBezierPath(ovalIn: NSRect(x: 5.0, y: 4.4, width: 12.0, height: 9.6))
+        bodyC.setFill(); body.fill()
+        outlineC.setStroke(); body.lineWidth = 0.7; body.stroke()
+
+        // 头（贴在右侧）
+        let headC = NSPoint(x: 14.4, y: 10.2)
+        let r: CGFloat = 3.5
+        let head = NSBezierPath(ovalIn: NSRect(x: headC.x - r, y: headC.y - r, width: r * 2, height: r * 2))
+        bodyC.setFill(); head.fill()
+        outlineC.setStroke(); head.lineWidth = 0.7; head.stroke()
+
+        // 耳朵（小三角）
+        for side: CGFloat in [-1, 1] {
+            let ear = NSBezierPath()
+            ear.move(to: NSPoint(x: headC.x + side * r * 0.5, y: headC.y + r * 0.55))
+            ear.line(to: NSPoint(x: headC.x + side * r * 0.75, y: headC.y + r * 1.15))
+            ear.line(to: NSPoint(x: headC.x + side * r * 0.15, y: headC.y + r * 0.8))
+            ear.close()
+            bodyC.setFill(); ear.fill()
+            outlineC.setStroke(); ear.lineWidth = 0.6; ear.stroke()
+        }
+
+        // 闭眼（向下弧线）
+        outlineC.setStroke()
+        for side: CGFloat in [-1, 1] {
+            let eye = NSBezierPath()
+            eye.move(to: NSPoint(x: headC.x + side * r * 0.62, y: headC.y + r * 0.12))
+            eye.curve(to: NSPoint(x: headC.x + side * r * 0.05, y: headC.y + r * 0.12),
+                      controlPoint1: NSPoint(x: headC.x + side * r * 0.45, y: headC.y + r * 0.32),
+                      controlPoint2: NSPoint(x: headC.x + side * r * 0.22, y: headC.y + r * 0.32))
+            eye.lineWidth = 0.5
+            eye.stroke()
+        }
+
+        // Zzz
+        outlineC.withAlphaComponent(0.5).setStroke()
+        let zx = headC.x + 2.0
+        let zy = headC.y + r * 1.5
+        let z = NSBezierPath()
+        z.move(to: NSPoint(x: zx, y: zy + 1.8))
+        z.line(to: NSPoint(x: zx + 2.4, y: zy))
+        z.line(to: NSPoint(x: zx, y: zy))
+        z.lineWidth = 0.6
+        z.lineCapStyle = .round
+        z.lineJoinStyle = .round
+        z.stroke()
+
+        cg.restoreGState()
     }
 
     // MARK: - 奔跑姿态
