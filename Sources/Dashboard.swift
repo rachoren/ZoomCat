@@ -40,6 +40,8 @@ final class DashboardModel: ObservableObject {
     @Published var claudeContextFrac: Double = 0
     @Published var claudeFiveFrac: Double = 0
     @Published var claudeSevenFrac: Double = 0
+    @Published var claudeFiveValid = false
+    @Published var claudeSevenValid = false
 }
 
 // MARK: - 进程排行条目
@@ -169,8 +171,18 @@ struct DashboardView: View {
             } else {
                 ClaudeRow(title: "模型", value: model.claudeModel)
                 ClaudeMetricRow(title: "上下文", value: model.claudeContext, fraction: model.claudeContextFrac)
-                ClaudeMetricRow(title: "5h 限额", value: model.claudeFive, fraction: model.claudeFiveFrac)
-                ClaudeMetricRow(title: "7d 限额", value: model.claudeSeven, fraction: model.claudeSevenFrac)
+                if model.claudeFiveValid {
+                    ClaudeMetricRow(title: "5h 限额", value: model.claudeFive, fraction: model.claudeFiveFrac)
+                }
+                if model.claudeSevenValid {
+                    ClaudeMetricRow(title: "7d 限额", value: model.claudeSeven, fraction: model.claudeSevenFrac)
+                }
+                if !model.claudeFiveValid && !model.claudeSevenValid {
+                    Text("速率限额仅 Claude.ai 订阅账号提供")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .padding(12)

@@ -87,11 +87,12 @@ enum ClaudeStatus {
         try? FileManager.default.removeItem(atPath: scriptPath)
     }
 
-    /// 汇总展示文本（含进度条比例 0-1）。
+    /// 汇总展示文本（含进度条比例 0-1；速率限额仅订阅账号提供）。
     static func summary() -> (model: String, context: String, five: String, seven: String,
-                              contextFrac: Double, fiveFrac: Double, sevenFrac: Double, active: Bool) {
+                              contextFrac: Double, fiveFrac: Double, sevenFrac: Double,
+                              fiveValid: Bool, sevenValid: Bool, active: Bool) {
         guard let s = read() else {
-            return ("--", "--", "--", "--", 0, 0, 0, false)
+            return ("--", "--", "--", "--", 0, 0, 0, false, false, false)
         }
         // 新鲜度：文件在 90 秒内更新过视为会话活跃
         var active = false
@@ -102,7 +103,8 @@ enum ClaudeStatus {
         let five = formatPercent(s.fiveHour) + formatReset(s.fiveResetAt)
         let seven = formatPercent(s.sevenDay) + formatReset(s.sevenResetAt)
         return (s.model ?? "--", formatPercent(s.context), five, seven,
-                clampFrac(s.context), clampFrac(s.fiveHour), clampFrac(s.sevenDay), active)
+                clampFrac(s.context), clampFrac(s.fiveHour), clampFrac(s.sevenDay),
+                s.fiveHour != nil, s.sevenDay != nil, active)
     }
 
     private static func clampFrac(_ v: Double?) -> Double {

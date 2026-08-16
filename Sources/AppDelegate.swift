@@ -287,6 +287,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         model.claudeContextFrac = s.contextFrac
         model.claudeFiveFrac = s.fiveFrac
         model.claudeSevenFrac = s.sevenFrac
+        model.claudeFiveValid = s.fiveValid
+        model.claudeSevenValid = s.sevenValid
         model.claudeActive = s.active
     }
 
