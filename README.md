@@ -1,6 +1,6 @@
 # ZoomCat
 
-![Version](https://img.shields.io/badge/version-v0.3.4-blue)
+![Version](https://img.shields.io/badge/version-v0.3.5-blue)
 ![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Language](https://img.shields.io/badge/language-Swift%2FAppKit-orange)
@@ -9,7 +9,7 @@
 CPU 低时端坐休息、摇尾巴，CPU 高时撒腿狂奔。纯 Swift + AppKit 实现，
 无需任何第三方依赖，猫咪为程序化矢量绘制（任意分辨率清晰）。
 
-> **当前版本：v0.3.4** —— 新增 Claude Code 集成卡片。
+> **当前版本：v0.3.5** —— 角色系统 + 生动化动画。
 
 ## 特性
 
@@ -77,7 +77,14 @@ macOS 没有公开的温度 API。本应用按 SMC → IOHID → 温度监控助
 
 ## 版本记录
 
-### v0.3.4（当前版本）
+### v0.3.5（当前版本）
+- 🎭 **角色系统**：猫咪 / 柴犬 / 兔子 / 熊猫 / 企鹅（Runner Gallery 风格）
+- 🎨 形象重构：宽扁舒展比例（30×18，参考 RunCatNeo 精灵设计）
+- 😍 表情生动化：奔跑前倾 + 坚定眉毛、柴犬吐舌、兔子甩耳、熊猫汗滴、猫咪张嘴
+- 🎞️ 动画加长：奔跑 16 帧（双步伐变化）/ 端坐 4 帧（眨眼）/ 睡觉 4 帧
+- 🤖 Claude Code 卡片：新增进程检测，自动化会话显示“运行中”
+
+### v0.3.4
 - 🤖 **Claude Code 卡片**：模型 / 上下文用量 / 速率限额（statusLine 钩子，一键配置/移除）
 - 📊 进度条：上下文与限额可视化，>80% 橙、>95% 红警告
 - 🖱️ 点击外部自动收起（v0.3.3 体验优化）
