@@ -5,7 +5,7 @@ import AppKit
 /// 使四周留出统一边距（margin），解决内容贴边/不居中的问题。
 enum FrameRenderer {
     static func makeImage(ptW: CGFloat = 30, ptH: CGFloat = 18,
-                          pixelScale: CGFloat = 2, margin: CGFloat = 1.5,
+                          pixelScale: CGFloat = 2, margin: CGFloat = 2.5,
                           _ draw: () -> Void) -> NSImage {
         let pw = Int(ptW * pixelScale)
         let ph = Int(ptH * pixelScale)

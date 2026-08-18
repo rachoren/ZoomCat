@@ -95,9 +95,9 @@ struct DashboardView: View {
                 settingsSection
                 footer
             }
-            .padding(16)
+            .padding(20)
         }
-        .frame(width: 300)
+        .frame(width: 320)
     }
 
     // MARK: 头部
@@ -623,7 +623,7 @@ final class DashboardController {
         // 先布局一次以获得内容高度
         hosting.view.layoutSubtreeIfNeeded()
         let fitting = hosting.view.fittingSize
-        popover.contentSize = NSSize(width: 300, height: min(max(fitting.height, 240), 600))
+        popover.contentSize = NSSize(width: 320, height: min(max(fitting.height, 240), 600))
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         installDismissMonitors()
     }
