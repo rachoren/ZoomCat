@@ -95,7 +95,7 @@ struct DashboardView: View {
                 settingsSection
                 footer
             }
-            .padding(14)
+            .padding(16)
         }
         .frame(width: 300)
     }

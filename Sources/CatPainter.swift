@@ -305,15 +305,15 @@ struct CatPainter {
         cg.rotate(by: -0.05)
         cg.translateBy(x: -g.body.midX, y: -g.body.midY)
 
-        // 尾巴
-        let tailStart = NSPoint(x: g.body.minX + 0.3, y: g.body.midY + 0.7)
-        let tailTip = NSPoint(x: g.body.minX - 2.6,
+        // 尾巴（宽体品种钳制在画布内，避免伸出左边缘）
+        let tailStart = NSPoint(x: max(g.body.minX + 0.3, 1.4), y: g.body.midY + 0.7)
+        let tailTip = NSPoint(x: max(g.body.minX - 2.6, 0.9),
                               y: g.body.midY + 0.5 + tailAmp * sin(phi + 1.3 + 0.7 * stride))
         let tail = NSBezierPath()
         tail.move(to: tailStart)
         tail.curve(to: tailTip,
-                   controlPoint1: NSPoint(x: g.body.minX - 0.9, y: g.body.midY + 2.4),
-                   controlPoint2: NSPoint(x: g.body.minX - 3.4, y: g.body.midY + 2.8))
+                   controlPoint1: NSPoint(x: max(g.body.minX - 0.9, 1.8), y: g.body.midY + 2.4),
+                   controlPoint2: NSPoint(x: max(g.body.minX - 3.4, 0.5), y: g.body.midY + 2.8))
         tail.lineWidth = cfg.tailWidth
         tail.lineCapStyle = .round
         tailColor.setStroke()
