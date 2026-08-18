@@ -6,6 +6,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private var cpu = CPUUsage()
     private let temperature = TemperatureProvider()
+    private var launchedByOpenEvent = false
 
     private let model = DashboardModel()
     private var dashboard: DashboardController!
@@ -62,7 +63,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - 生命周期
 
+    /// 注册“用户双击/打开”事件（区别于开机自启，用于启动反馈）。
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleOpenEvent(_:withReply:)),
+            forEventClass: AEEventClass(kCoreEventClass),
+            andEventID: AEEventID(kAEOpenApplication))
+    }
+
+    @objc private func handleOpenEvent(_ event: NSAppleEventDescriptor?,
+                                       withReply reply: NSAppleEventDescriptor?) {
+        launchedByOpenEvent = true
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // 单实例保护：已有实例在运行 → 通知它弹出仪表盘，自己退出
+        if let existing = otherRunningInstance() {
+            existing.activate(options: [.activateAllWindows])
+            DistributedNotificationCenter.default().postNotificationName(
+                Notification.Name("com.zoomcat.showdashboard"), object: nil)
+            NSApp.terminate(nil)
+            return
+        }
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(showDashboardRequested),
+            name: Notification.Name("com.zoomcat.showdashboard"), object: nil)
+
         NSApp.setActivationPolicy(.accessory) // 无 Dock 图标
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -97,6 +124,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSWorkspace.didWakeNotification, object: nil)
 
         maybePromptDaemonInstall()
+
+        // 双击/手动打开的反馈：稍后弹出仪表盘，让用户明确看到应用已启动
+        if launchedByOpenEvent {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                guard let self, let button = self.statusItem.button else { return }
+                self.dashboard.show(from: button)
+            }
+        }
+    }
+
+    /// 已在运行时再次被双击/唤起：弹出仪表盘作为反馈。
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showDashboardRequested()
+        return true
+    }
+
+    private func otherRunningInstance() -> NSRunningApplication? {
+        let pid = getpid()
+        return NSRunningApplication.runningApplications(withBundleIdentifier: "local.zoomcat.app")
+            .first { $0.processIdentifier != pid }
+    }
+
+    @objc private func showDashboardRequested() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let button = self.statusItem.button else { return }
+            self.dashboard.show(from: button)
+        }
     }
 
     @objc private func toggleDashboard(_ sender: Any?) {
