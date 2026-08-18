@@ -113,8 +113,8 @@ struct DashboardView: View {
                 Text("ZoomCat").font(.headline)
                 Text(model.stateText).font(.caption).foregroundStyle(.secondary)
             }
-            Spacer()
         }
+        .frame(maxWidth: .infinity) // 居中
         .padding(.bottom, 2)
     }
 
@@ -297,37 +297,38 @@ struct DashboardView: View {
             Text("猫咪品种")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(model.breedPreviews.enumerated()), id: \.offset) { index, item in
-                        Button {
-                            onSelectBreed(index)
-                        } label: {
-                            VStack(spacing: 3) {
-                                Image(nsImage: item.1)
-                                    .resizable()
-                                    .frame(width: 42, height: 25)
-                                Text(item.0)
-                                    .font(.system(size: 9))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-                            .frame(width: 44)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(index == model.selectedBreed ? Color.accentColor.opacity(0.16) : Color.clear)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .strokeBorder(index == model.selectedBreed ? Color.accentColor : Color.clear,
-                                                  lineWidth: 1.2)
-                            )
+            // 5 列固定网格：10 个品种正好 2 行满格，整体居中
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(44), spacing: 10), count: 5),
+                      alignment: .center, spacing: 8) {
+                ForEach(Array(model.breedPreviews.enumerated()), id: \.offset) { index, item in
+                    Button {
+                        onSelectBreed(index)
+                    } label: {
+                        VStack(spacing: 3) {
+                            Image(nsImage: item.1)
+                                .resizable()
+                                .frame(width: 40, height: 24)
+                            Text(item.0)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
-                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(index == model.selectedBreed ? Color.accentColor.opacity(0.16) : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(index == model.selectedBreed ? Color.accentColor : Color.clear,
+                                              lineWidth: 1.2)
+                        )
                     }
+                    .buttonStyle(.plain)
                 }
             }
+            .frame(maxWidth: .infinity)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
