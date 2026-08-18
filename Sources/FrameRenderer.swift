@@ -10,21 +10,33 @@ enum FrameRenderer {
         let pw = Int(ptW * pixelScale)
         let ph = Int(ptH * pixelScale)
 
-        // 第一遍：渲染到临时 rep，测量内容包围盒
-        let measureRep = makeRep(pw: pw, ph: ph)
-        render(into: measureRep, pixelScale: pixelScale, tx: 0, ty: 0, draw: draw)
-        guard margin > 0 else { return makeImage(from: measureRep, ptW: ptW, ptH: ptH) }
-
-        let box = measureBBox(measureRep, pw: pw, ph: ph)
-        guard box.maxX > box.minX, box.maxY > box.minY else {
-            return makeImage(from: measureRep, ptW: ptW, ptH: ptH)
+        // 无需边距（如 App 图标）：直接渲染返回
+        guard margin > 0 else {
+            let rep0 = makeRep(pw: pw, ph: ph)
+            render(into: rep0, pixelScale: pixelScale, tx: 0, ty: 0, draw: draw)
+            return makeImage(from: rep0, ptW: ptW, ptH: ptH)
         }
 
-        // 换算到绘制坐标（绘制坐标系 y 向上，像素行 0 在顶部 → y 翻转）
+        // 第一遍：渲染到外扩画布（四周 pad），避免尾巴描边溢出被裁剪
+        // 导致测量偏差（内容实际比可见范围更宽）。
+        let pad: CGFloat = 3.0
+        let padPx = Int(pad * pixelScale)
+        let measureRep = makeRep(pw: pw + padPx * 2, ph: ph + padPx * 2)
+        render(into: measureRep, pixelScale: pixelScale,
+               tx: CGFloat(padPx), ty: CGFloat(padPx), draw: draw)
+
+        let box = measureBBox(measureRep, pw: pw + padPx * 2, ph: ph + padPx * 2)
+        guard box.maxX > box.minX, box.maxY > box.minY else {
+            let rep0 = makeRep(pw: pw, ph: ph)
+            render(into: rep0, pixelScale: pixelScale, tx: 0, ty: 0, draw: draw)
+            return makeImage(from: rep0, ptW: ptW, ptH: ptH)
+        }
+
+        // 换算到绘制坐标（y 向上；像素行 0 在顶部 → y 翻转）
         let dW = CGFloat(box.maxX - box.minX) / pixelScale
         let dH = CGFloat(box.maxY - box.minY) / pixelScale
-        let dMinX = CGFloat(box.minX) / pixelScale
-        let dMinY = (CGFloat(ph) - CGFloat(box.maxY)) / pixelScale
+        let dMinX = (CGFloat(box.minX) - CGFloat(padPx)) / pixelScale
+        let dMinY = (CGFloat(ph + padPx) - CGFloat(box.maxY)) / pixelScale
 
         // 按比例缩放，使内容四周留出 margin，并居中
         let scale = min((ptW - margin * 2) / dW, (ptH - margin * 2) / dH, 1.0)
@@ -33,7 +45,7 @@ enum FrameRenderer {
         let tx = (ptW - outW) / 2 - dMinX * scale
         let ty = (ptH - outH) / 2 - dMinY * scale
 
-        // 第二遍：渲染到全新 rep（带缩放与居中）
+        // 第二遍：渲染到最终 rep（带缩放与居中）
         let finalRep = makeRep(pw: pw, ph: ph)
         render(into: finalRep, pixelScale: pixelScale * scale,
                tx: tx * pixelScale, ty: ty * pixelScale, draw: draw)
